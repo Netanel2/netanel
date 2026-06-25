@@ -441,6 +441,178 @@
         .hl-comment { color: #6272a4; font-style: italic; } /* הערות - אפור כחלחל */
         .hl-number  { color: #bd93f9; } /* מספרים - סגול */
 
+        /* ============================================================
+           UX ENHANCEMENTS · אפקטים ומיקרו-אינטראקציות
+           הכל מקומי לחלוטין · אפס קריאות רשת · אפס ספריות חיצוניות
+           ============================================================ */
+
+        /* רקע אטמוספרי עדין עם זוהר זהב/טורקיז */
+        body {
+            background-color: var(--bg-main);
+            background-image:
+                radial-gradient(900px 520px at 88% -12%, rgba(212,175,106,0.06), transparent 60%),
+                radial-gradient(760px 620px at -12% 112%, rgba(159,211,199,0.045), transparent 55%);
+            background-attachment: fixed;
+        }
+
+        /* כניסה רכה של כל הממשק בטעינה */
+        .wrapper { animation: appReveal .55s cubic-bezier(.22,.61,.36,1) both; }
+        @keyframes appReveal {
+            from { opacity: 0; transform: translateY(10px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+
+        /* נקודת הזהב — נשימה עדינה */
+        .gold-dot { animation: goldPulse 2.8s ease-in-out infinite; }
+        @keyframes goldPulse {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(212,175,106,0); transform: scale(1); }
+            50%      { box-shadow: 0 0 14px 2px rgba(212,175,106,.45); transform: scale(1.18); }
+        }
+
+        /* טאבים — קו תחתון מונפש שמחליק */
+        .tab-btn { position: relative; }
+        .tab-btn::after {
+            content: "";
+            position: absolute;
+            inset-inline: 0; bottom: -1px;
+            height: 2px; border-radius: 2px;
+            background: var(--gold-main);
+            transform: scaleX(0);
+            transition: transform .28s cubic-bezier(.4,0,.2,1);
+        }
+        .tab-btn.active::after { transform: scaleX(1); box-shadow: 0 0 10px rgba(212,175,106,.55); }
+        .tab-btn.active { border-bottom-color: transparent; }
+
+        /* תוכן טאב — כניסה עדינה בכל מעבר */
+        .tab-content.active { animation: tabIn .35s cubic-bezier(.22,.61,.36,1) both; }
+        @keyframes tabIn {
+            from { opacity: 0; transform: translateY(8px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+
+        /* כרטיסים — הרמה והדגשת מסגרת ב-hover, מסגרת זהב כשעובדים בתוכם */
+        .card {
+            transition: border-color .25s ease, box-shadow .3s ease, transform .25s ease;
+            box-shadow: 0 1px 0 rgba(255,255,255,.02) inset, 0 4px 18px -12px rgba(0,0,0,.7);
+        }
+        .card:hover {
+            border-color: #333949;
+            box-shadow: 0 1px 0 rgba(255,255,255,.03) inset, 0 14px 40px -20px rgba(0,0,0,.85);
+        }
+        .card:focus-within {
+            border-color: rgba(212,175,106,.5);
+            box-shadow: 0 0 0 1px rgba(212,175,106,.18), 0 14px 40px -22px rgba(0,0,0,.9);
+        }
+
+        /* שדות קלט — טבעת פוקוס זהב רכה */
+        textarea, .param-field-group input, select {
+            transition: box-shadow .2s ease, border-color .2s ease, background-color .2s ease;
+        }
+        textarea:focus { box-shadow: inset 0 0 0 1px rgba(212,175,106,.28); }
+        .param-field-group input:focus, select:focus { box-shadow: 0 0 0 3px rgba(212,175,106,.12); }
+
+        /* כפתור פעולה ראשי — גרדיאנט עדין + הרמה + זוהר */
+        button.btn-main {
+            background-image: linear-gradient(180deg, #ddbb78, var(--gold-main));
+        }
+        button.btn-main:hover { background-image: linear-gradient(180deg, #e3c486, var(--gold-hover)); }
+
+        button.btn-main, button.btn-copy {
+            position: relative; overflow: hidden;
+            transition: transform .12s ease, box-shadow .25s ease, background-color .2s ease, filter .2s ease;
+            box-shadow: 0 6px 16px -8px rgba(212,175,106,.55);
+        }
+        button.btn-main:hover, button.btn-copy:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 10px 22px -8px rgba(212,175,106,.7);
+            filter: brightness(1.04);
+        }
+        button.btn-main:active, button.btn-copy:active {
+            transform: translateY(0) scale(.97);
+            box-shadow: 0 4px 10px -6px rgba(212,175,106,.5);
+        }
+        button.btn-copy.copied {
+            box-shadow: 0 0 0 3px rgba(63,174,142,.25), 0 8px 20px -8px rgba(63,174,142,.6);
+        }
+
+        /* גל לחיצה (Ripple) */
+        .ripple {
+            position: absolute; border-radius: 50%;
+            background: rgba(26,20,7,.35);
+            transform: scale(0); pointer-events: none;
+            animation: rippleAnim .55s ease-out;
+        }
+        @keyframes rippleAnim { to { transform: scale(2.6); opacity: 0; } }
+
+        /* segment + checkbox feedback */
+        .segment-btn { transition: background-color .2s ease, color .2s ease, box-shadow .2s ease; }
+        .segment-btn.active { box-shadow: inset 0 0 0 1px rgba(255,255,255,.1); }
+        .checkbox-toggle { transition: border-color .2s ease, background-color .2s ease, color .2s ease; }
+        .checkbox-toggle:hover { border-color: #333949; color: var(--text-main); }
+        .checkbox-toggle:has(input:checked) {
+            border-color: rgba(212,175,106,.45);
+            color: var(--text-main);
+            background-color: rgba(212,175,106,.06);
+        }
+
+        /* תיבות פלט — הבזק עדין כשנוצר תוכן חדש */
+        .out.flash, .compare-view.flash { animation: outFlash .9s ease-out; }
+        @keyframes outFlash {
+            0%   { background-color: rgba(212,175,106,.10); }
+            100% { background-color: transparent; }
+        }
+
+        /* פריטי תבניות — תזוזה עדינה ב-hover */
+        .template-item-btn { transition: background-color .18s ease, color .18s ease, padding-inline-start .18s ease; }
+        .template-item-btn:hover { padding-inline-start: 16px; }
+
+        /* פס גלילה מותאם לערכה הכהה */
+        * { scrollbar-width: thin; scrollbar-color: #2c313c transparent; }
+        ::-webkit-scrollbar { width: 10px; height: 10px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb {
+            background: #2c313c; border-radius: 8px;
+            border: 2px solid transparent; background-clip: content-box;
+        }
+        ::-webkit-scrollbar-thumb:hover { background: #3a4150; background-clip: content-box; }
+
+        /* טוסט הודעות צף */
+        #toastHost {
+            position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+            display: flex; flex-direction: column; gap: 8px; z-index: 9999; pointer-events: none;
+        }
+        .toast {
+            background: var(--panel-header-bg);
+            border: 1px solid rgba(212,175,106,.35);
+            color: var(--text-main);
+            padding: 10px 16px; border-radius: 10px; font-size: 13px;
+            box-shadow: 0 16px 40px -16px rgba(0,0,0,.9);
+            display: flex; align-items: center; gap: 8px;
+            animation: toastIn .3s cubic-bezier(.22,.61,.36,1);
+        }
+        .toast .toast-ic { color: var(--success-color); font-weight: 700; }
+        .toast.leaving { animation: toastOut .3s ease forwards; }
+        @keyframes toastIn  { from { opacity:0; transform: translateY(12px) scale(.96);} to { opacity:1; transform: translateY(0) scale(1);} }
+        @keyframes toastOut { to { opacity:0; transform: translateY(12px) scale(.96);} }
+
+        /* פוקוס מקלדת ברור (נגישות) */
+        :focus-visible { outline: 2px solid var(--gold-main); outline-offset: 2px; border-radius: 4px; }
+
+        /* כיבוד העדפת תנועה מופחתת */
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after { animation: none !important; transition: none !important; }
+        }
+
+        /* תיקון רספונסיביות במסכים צרים — מונע גלישה אופקית בלשונית התבניות.
+           ה-!important נדרש כדי לגבור על סגנונות ה-inline שמוגדרים על הרשת. */
+        @media (max-width: 640px) {
+            body { padding-left: 14px; padding-right: 14px; }
+            #templates-tab .compare-grid { grid-template-columns: 1fr !important; }
+            #templates-tab .card[style*="max-height"] { max-height: 280px !important; }
+            /* שורות בונה השאילתה (נוצרות דינמית עם רשת 3 עמודות) — מיושרות לעמודה אחת */
+            #builderColumnsArea > div { grid-template-columns: 1fr !important; gap: 8px !important; }
+        }
+
     </style>
 </head>
 <body>
@@ -739,28 +911,57 @@
         element.classList.add('active');
     }
 
-    // מנגנון העתקה מתקדם ללוח עם שינוי חיווי ויזואלי בכפתור
+    // מנגנון העתקה ללוח עם חיווי ויזואלי + נפילה חכמה ל-execCommand
+    // (נדרש כש-navigator.clipboard חסום ב-iframe / file:// / הקשר לא מאובטח)
     function copyText(elementId, btnElement) {
         const target = document.getElementById(elementId);
         if (!target) return;
-        
+
         const textToCopy = target.tagName === 'TEXTAREA' ? target.value : target.innerText;
         if (!textToCopy || textToCopy.trim() === "") return;
 
-        navigator.clipboard.writeText(textToCopy)
-            .then(() => {
-                const originalText = btnElement.innerText;
-                btnElement.innerText = "הועתק!";
-                btnElement.classList.add('copied');
-                
-                setTimeout(() => {
-                    btnElement.innerText = originalText;
-                    btnElement.classList.remove('copied');
-                }, 2000);
-            })
-            .catch(err => {
-                console.error('שגיאה בהעתקה ללוח: ', err);
-            });
+        const showResult = (ok) => {
+            const originalText = btnElement.innerText;
+            btnElement.innerText = ok ? "הועתק!" : "נסה שוב";
+            btnElement.classList.toggle('copied', ok);
+            if (ok && typeof window.showCopyToast === 'function') {
+                window.showCopyToast('הועתק ללוח');
+            }
+            setTimeout(() => {
+                btnElement.innerText = originalText;
+                btnElement.classList.remove('copied');
+            }, 2000);
+        };
+
+        // שיטת גיבוי: textarea זמני + execCommand('copy') — עובד גם כשה-Clipboard API חסום
+        const fallbackCopy = (txt) => {
+            const ta = document.createElement('textarea');
+            ta.value = txt;
+            ta.setAttribute('readonly', '');
+            ta.style.position = 'fixed';
+            ta.style.top = '-9999px';
+            ta.style.left = '-9999px';
+            ta.style.opacity = '0';
+            document.body.appendChild(ta);
+            const sel = document.getSelection();
+            const saved = (sel && sel.rangeCount > 0) ? sel.getRangeAt(0) : null;
+            ta.focus();
+            ta.select();
+            try { ta.setSelectionRange(0, ta.value.length); } catch (e) {}
+            let ok = false;
+            try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+            document.body.removeChild(ta);
+            if (saved && sel) { sel.removeAllRanges(); sel.addRange(saved); }
+            return ok;
+        };
+
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(textToCopy)
+                .then(() => showResult(true))
+                .catch(() => showResult(fallbackCopy(textToCopy)));
+        } else {
+            showResult(fallbackCopy(textToCopy));
+        }
     }
 	    // מנוע צביעת קוד אוטומטי ללא ספריות חיצוניות (Local Syntax Highlighter)
     function highlightCode(text, type = 'auto') {
@@ -774,13 +975,29 @@
 
         // אם זה קוד XML / HTML
         if (type === 'xml' || (type === 'auto' && text.trim().startsWith('<'))) {
-            html = html
-                .replace(/(&lt;\/?[a-zA-Z0-9_:]+)(\s|&gt;)/g, '<span class="hl-tag">$1</span>$2') // תגיות פתיחה וסגירה
-                .replace(/(\/&gt;)/g, '<span class="hl-tag">$1</span>') // תגיות סגירה עצמית
-                .replace(/\s([a-zA-Z0-9_:-]+)=/g, ' <span class="hl-attr">$1</span>=') // תכונות ואטריביוטים
-                .replace(/"([^"]*)"/g, '<span class="hl-string">"$1"</span>') // ערכים במרכאות כפולות
-                .replace(/'([^']*)'/g, '<span class="hl-string">\'$1\'</span>'); // ערכים בגרש בודד
-            return html;
+            // צובע כל תג בנפרד באמצעות פונקציית-החלפה, ובונה את התוצאה ע"י שרשור.
+            // קריטי: ה-regex רץ רק על הטקסט המקורי (html / inner) ולעולם לא על ה-spans
+            // שכבר הזרקנו — כך נמנעת ההתנגשות שגרמה ל-class="hl-tag" לחזור כטקסט.
+            return html.replace(/(&lt;)(\/?)([\s\S]*?)(&gt;)/g, function (match, lt, slash, inner, gt) {
+                const attrRe = /([a-zA-Z_:][\w:.\-]*)\s*=\s*("[^"]*"|'[^']*')/g;
+                let buf = '';
+                let last = 0;
+                let m;
+                while ((m = attrRe.exec(inner)) !== null) {
+                    // שם התג / רווחים שלפני השם-ערך — בצבע תג
+                    if (m.index > last) {
+                        buf += '<span class="hl-tag">' + inner.slice(last, m.index) + '</span>';
+                    }
+                    buf += '<span class="hl-attr">' + m[1] + '</span>='
+                         + '<span class="hl-string">' + m[2] + '</span>';
+                    last = m.index + m[0].length;
+                }
+                if (last < inner.length) {
+                    buf += '<span class="hl-tag">' + inner.slice(last) + '</span>';
+                }
+                return '<span class="hl-tag">' + lt + slash + '</span>' + buf
+                     + '<span class="hl-tag">' + gt + '</span>';
+            });
         }
 
         // אם זה קוד SQL (הכלים: Beautify, בונה השאילתות, XML ל-SQL, SSIS)
@@ -1029,7 +1246,7 @@
             .replace(/</g, "&lt;")
             .replace(/>/g, "&gt;")
             .replace(/"/g, "&quot;")
-            .replace(/'/g, "'");
+            .replace(/'/g, "&#39;");
     }
 
     // לוגיקת כלי 4: עובדים (AL Generator)
@@ -1595,6 +1812,77 @@
             document.getElementById("builderUpdateOutputCode").innerText = commentedUpdateQuery;
         }
     }
+</script>
+
+<!-- ============================================================
+     שכבת שיפור חווית משתמש · אדיטיבית בלבד · לא נוגעת בלוגיקת ה-SQL
+     ============================================================ -->
+<script>
+(function(){
+    'use strict';
+    if (window.__uxEnhanced) return;
+    window.__uxEnhanced = true;
+
+    var reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    /* ---- טוסט צף ---- */
+    function host(){
+        var h = document.getElementById('toastHost');
+        if(!h){ h = document.createElement('div'); h.id = 'toastHost'; document.body.appendChild(h); }
+        return h;
+    }
+    function showToast(msg){
+        var t = document.createElement('div');
+        t.className = 'toast';
+        t.innerHTML = '<span class="toast-ic">✓</span><span></span>';
+        t.lastChild.textContent = msg;
+        host().appendChild(t);
+        setTimeout(function(){
+            t.classList.add('leaving');
+            setTimeout(function(){ t.remove(); }, 320);
+        }, 1700);
+    }
+    /* חשיפת הטוסט ל-copyText — מופעל רק כשההעתקה הצליחה בפועל */
+    window.showCopyToast = showToast;
+
+    /* ---- אפקט גל לחיצה ---- */
+    document.addEventListener('click', function(e){
+        if (reduceMotion) return;
+        var btn = e.target.closest('button.btn-main, button.btn-copy, .segment-btn, .tab-btn');
+        if (!btn) return;
+        var rect = btn.getBoundingClientRect();
+        var size = Math.max(rect.width, rect.height);
+        var r = document.createElement('span');
+        r.className = 'ripple';
+        r.style.width = r.style.height = size + 'px';
+        r.style.left = (e.clientX - rect.left - size / 2) + 'px';
+        r.style.top  = (e.clientY - rect.top  - size / 2) + 'px';
+        if (btn.classList.contains('tab-btn') || btn.classList.contains('segment-btn')) {
+            r.style.background = 'rgba(212,175,106,.30)';
+        }
+        btn.appendChild(r);
+        setTimeout(function(){ r.remove(); }, 600);
+    }, true);
+
+    /* ---- הבזק עדין בכל פעם שתיבת פלט מתעדכנת ---- */
+    function watchOutputs(){
+        var boxes = document.querySelectorAll('.out, .compare-view');
+        boxes.forEach(function(box){
+            var obs = new MutationObserver(function(){
+                if (box.textContent.trim().length) {
+                    box.classList.remove('flash');
+                    void box.offsetWidth; /* reflow כדי לאתחל את האנימציה */
+                    box.classList.add('flash');
+                }
+            });
+            obs.observe(box, { childList: true, characterData: true, subtree: true });
+        });
+    }
+
+    document.addEventListener('DOMContentLoaded', function(){
+        watchOutputs();
+    });
+})();
 </script>
 </body>
 </html>
