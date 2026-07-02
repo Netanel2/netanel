@@ -1,6 +1,3 @@
-107533	גיא	דניאל	daniel	Guy	guydani@altshul.co.il
-
-
 <!DOCTYPE html>
 <html lang="he" dir="rtl">
 <head>
@@ -637,6 +634,7 @@
         <button class="tab-btn" onclick="switchTab('employees')">עובדים</button>
         <button class="tab-btn" onclick="switchTab('xml-sql')">XML→SQL</button>
         <button class="tab-btn" onclick="switchTab('templates-tab')">תבניות שאילתות</button>
+        <button class="tab-btn" onclick="switchTab('unicode-tab')">Unicode ⇄ מלל</button>
     </div>
     <!-- כלי 1: IN Builder -->
     <div id="in-builder" class="tab-content active">
@@ -877,6 +875,41 @@
                     <div id="builderUpdateOutputCode" class="out" style="min-height: 100px; background-color: #0c0d10;"></div>
                 </div>
             </div>
+        </div>
+    </div>
+
+    <!-- כלי 7: Unicode ⇄ מלל (מפענח/מקודד רצפי בריחה) -->
+    <div id="unicode-tab" class="tab-content">
+        <div class="hint-box">
+            ממיר טקסט מקודד ל-<strong>מלל קריא</strong> ולהפך. בפענוח מזהה
+            <code>\uXXXX</code>, <code>\u{XXXX}</code>, <code>\xXX</code>,
+            ישויות HTML (<code>&amp;#1489;</code> / <code>&amp;#x5D1;</code>),
+            קידוד URL (<code>%D7%91</code>) ובריחות JSON נפוצות (<code>\n</code>, <code>\t</code>).
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <span class="card-label">קלט</span>
+            </div>
+            <textarea id="uniInput" dir="ltr" placeholder="\u05d1\u05d5\u05d2\u05e0\u05d9\u05dd \u05e2\u05d9\u05d3\u05d9\u05ea"></textarea>
+        </div>
+
+        <div class="controls">
+            <div class="segment-control" id="uniModeGroup">
+                <button type="button" class="segment-btn active" onclick="setUniMode('decode', this)">פענוח ← מלל</button>
+                <button type="button" class="segment-btn" onclick="setUniMode('encode', this)">קידוד → \u</button>
+            </div>
+            <button type="button" class="btn-main" onclick="processUnicode()">המר</button>
+        </div>
+
+        <div id="uniError" class="error-message"></div>
+
+        <div class="card">
+            <div class="card-header">
+                <span class="card-label">תוצאה</span>
+                <button type="button" class="btn-copy" onclick="copyText('uniOutput', this)">העתק</button>
+            </div>
+            <div id="uniOutput" class="out wrap-soft"></div>
         </div>
     </div>
 
@@ -1285,8 +1318,8 @@
             }
 
             const empId = parts[0];
-            const lastNameEng = parts[2];
-            const firstNameEng = parts[4];
+            const lastNameEng = parts[3];   // עמודה 4 = שם משפחה באנגלית (parts[2] היה עברית — הבאג)
+            const firstNameEng = parts[4];   // עמודה 5 = שם פרטי באנגלית
             const email = parts[5];
 
             let alCodeLetters = "AL" + firstNameEng;
@@ -1813,6 +1846,91 @@
         
         if (document.getElementById("builderUpdateOutputCode")) {
             document.getElementById("builderUpdateOutputCode").innerText = commentedUpdateQuery;
+        }
+    }
+
+    // ==========================================
+    // לוגיקת כלי 7: Unicode ⇄ מלל
+    // ==========================================
+    let currentUniMode = 'decode';
+
+    function setUniMode(mode, element) {
+        currentUniMode = mode;
+        const parent = element.parentElement;
+        parent.querySelectorAll('.segment-btn').forEach(btn => btn.classList.remove('active'));
+        element.classList.add('active');
+    }
+
+    // פענוח כלל פורמטי הבריחה הנפוצים למלל קריא
+    function decodeAllEscapes(str) {
+        let s = str;
+
+        // \u{XXXXX}  (ES6, כולל תווים מעל BMP)
+        s = s.replace(/\\u\{([0-9a-fA-F]+)\}/g, (_, h) => String.fromCodePoint(parseInt(h, 16)));
+        // \uXXXX  (זוגות surrogate מתחברים אוטומטית כשהם צמודים)
+        s = s.replace(/\\u([0-9a-fA-F]{4})/g, (_, h) => String.fromCharCode(parseInt(h, 16)));
+        // \xXX
+        s = s.replace(/\\x([0-9a-fA-F]{2})/g, (_, h) => String.fromCharCode(parseInt(h, 16)));
+        // ישויות HTML: &#xHHHH;  ו-  &#NNNN;
+        s = s.replace(/&#x([0-9a-fA-F]+);/g, (_, h) => String.fromCodePoint(parseInt(h, 16)));
+        s = s.replace(/&#(\d+);/g, (_, d) => String.fromCodePoint(parseInt(d, 10)));
+        // קידוד URL (UTF-8 percent-encoding) — רק אם קיימים אחוזים תקפים
+        if (/%[0-9a-fA-F]{2}/.test(s)) {
+            try { s = decodeURIComponent(s); } catch (e) { /* משאירים כפי שהוא אם לא תקין */ }
+        }
+        // בריחות JSON בסיסיות
+        s = s.replace(/\\n/g, '\n')
+             .replace(/\\t/g, '\t')
+             .replace(/\\r/g, '\r')
+             .replace(/\\"/g, '"')
+             .replace(/\\\//g, '/');
+
+        return s;
+    }
+
+    // קידוד: כל תו לא-ASCII הופך ל-\uXXXX (ASCII נשאר קריא)
+    function encodeToUnicode(str) {
+        let out = '';
+        for (const ch of str) {              // איטרציה לפי code point (תומך באמוג'י)
+            const cp = ch.codePointAt(0);
+            if (cp > 0xFFFF) {
+                const high = Math.floor((cp - 0x10000) / 0x400) + 0xD800;
+                const low  = ((cp - 0x10000) % 0x400) + 0xDC00;
+                out += '\\u' + high.toString(16).padStart(4, '0')
+                     + '\\u' + low.toString(16).padStart(4, '0');
+            } else if (cp > 0x7F) {
+                out += '\\u' + cp.toString(16).padStart(4, '0');
+            } else {
+                out += ch;
+            }
+        }
+        return out;
+    }
+
+    function processUnicode() {
+        const input = document.getElementById('uniInput').value;
+        const outputDiv = document.getElementById('uniOutput');
+        const errorDiv = document.getElementById('uniError');
+
+        errorDiv.style.display = 'none';
+        outputDiv.innerText = '';
+
+        if (!input) return;
+
+        try {
+            const result = currentUniMode === 'encode'
+                ? encodeToUnicode(input)
+                : decodeAllEscapes(input);
+
+            outputDiv.innerText = result;
+
+            // כיוון תצוגה אוטומטי — RTL לתוצאה עברית, אחרת LTR
+            const isRtl = /[\u0590-\u05FF\u0600-\u06FF]/.test(result);
+            outputDiv.style.direction = isRtl && currentUniMode === 'decode' ? 'rtl' : 'ltr';
+            outputDiv.style.textAlign = isRtl && currentUniMode === 'decode' ? 'right' : 'left';
+        } catch (e) {
+            errorDiv.innerText = 'שגיאה בהמרה: ' + e.message;
+            errorDiv.style.display = 'block';
         }
     }
 </script>
