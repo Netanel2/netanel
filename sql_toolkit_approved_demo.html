@@ -5,11 +5,12 @@ class Program
     static void Main()
     {
         string url = "https://hargal/nh_hargal_gemel/SignIn.aspx?SignOut=True";
+        string chromePath = @"C:\Program Files\Google\Chrome\Application\chrome.exe";
 
         Process.Start(new ProcessStartInfo
         {
-            FileName = url,
-            UseShellExecute = true
+            FileName = chromePath,
+            Arguments = url
         });
     }
 }
