@@ -1,23 +1,5 @@
-אפשרות 1 (הכי מומלצת, קלה ובטוחה): לתקן את הפרויקט שיוריד את הגרסה הנכונה בעצמו
-
-הפתרון המודרני הוא לוותר על הצורך להתאים גרסאות בעצמך, ולתת ל-Selenium לדאוג לזה אוטומטית (הפיצ'ר נקרא Selenium Manager). לשם כך צריך לעדכן את חבילת ה-NuGet של Selenium לגרסה חדשה (4 ומעלה) במקום Selenium 3 שמותקן היום.
-
-שלבים ב-Visual Studio:
-
-בסייד-בר של הפרויקט, לחץ ימני על שם הפרויקט → Manage NuGet Packages
-בלשונית Installed, מצא את Selenium.WebDriver — אם הוא בגרסה 3.x, לך ל-Updates ותעדכן אותו לגרסה עדכנית (4.x)
-אם יש חבילה נוספת בשם Selenium.WebDriver.ChromeDriver — אפשר להסיר אותה (Uninstall), כי בגרסאות 4 החדשות היא לא נדרשת יותר
-תבנה (Build) ותריץ שוב
-
-⚠️ שים לב: שינוי גרסת Selenium יכול לפעמים לדרוש שינוי קטן בקוד (למשל איך יוצרים את ה-ChromeDriverService). אני יכול לעזור לך לעדכן את הקוד בהתאם אחרי שתעשה את זה — רק תגיד לי.
-
-אפשרות 2 (מהירה אבל פחות "נכונה" לטווח ארוך): לקבע את גרסת ה-driver ל-147 בדיוק
-
-אם אתה לא רוצה לגעת בגרסת Selenium:
-
-פתח שוב את Manage NuGet Packages
-מצא את Selenium.WebDriver.ChromeDriver
-בחר גרסה שמתאימה ל-147 (למשל 147.0.x אם קיימת ברשימה)
-Install/Update
-
-החסרון: בכל פעם שכרום יתעדכן אצלך במחשב (וזה קורה לבד, אוטומטית, כל כמה שבועות) — התקלה הזו תחזור, ותצטרך לחזור ולעדכן שוב את הגרסה.
+Severity	Code	Description	Project	File	Line	Suppression State
+Warning		Could not copy "C:\Users\netanelma\source\repos\HargalAutomation\packages\Selenium.WebDriver.ChromeDriver.147.0.7727.5700\build\..\driver\win32\chromedriver.exe" to "C:\Users\netanelma\source\repos\HargalAutomation\HargalAutomation\bin\Debug\chromedriver.exe". Beginning retry 1 in 1000ms. The process cannot access the file 'C:\Users\netanelma\source\repos\HargalAutomation\HargalAutomation\bin\Debug\chromedriver.exe' because it is being used by another process. The file is locked by: "ChromeDriver (156340), ChromeDriver (149980), ChromeDriver (46208), ChromeDriver (152636)"	HargalAutomation			
+Warning		Could not copy "C:\Users\netanelma\source\repos\HargalAutomation\packages\Selenium.WebDriver.ChromeDriver.147.0.7727.5700\build\..\driver\win32\chromedriver.exe" to "C:\Users\netanelma\source\repos\HargalAutomation\HargalAutomation\bin\Debug\chromedriver.exe". Beginning retry 4 in 1000ms. The process cannot access the file 'C:\Users\netanelma\source\repos\HargalAutomation\HargalAutomation\bin\Debug\chromedriver.exe' because it is being used by another process. The file is locked by: "ChromeDriver (156340), ChromeDriver (149980), ChromeDriver (46208), ChromeDriver (152636)"	HargalAutomation			
+Warning		Could not copy "C:\Users\netanelma\source\repos\HargalAutomation\packages\Selenium.WebDriver.ChromeDriver.147.0.7727.5700\build\..\driver\win32\chromedriver.exe" to "C:\Users\netanelma\source\repos\HargalAutomation\HargalAutomation\bin\Debug\chromedriver.exe". Beginning retry 3 in 1000ms. The process cannot access the file 'C:\Users\netanelma\source\repos\HargalAutomation\HargalAutomation\bin\Debug\chromedriver.exe' because it is being used by another process. The file is locked by: "ChromeDriver (156340), ChromeDriver (149980), ChromeDriver (46208), ChromeDriver (152636)"	HargalAutomation			
+Warning		Could not copy "C:\Users\netanelma\source\repos\HargalAutomation\packages\Selenium.WebDriver.ChromeDriver.147.0.7727.5700\build\..\driver\win32\chromedriver.exe" to "C:\Users\netanelma\source\repos\HargalAutomation\HargalAutomation\bin\Debug\chromedriver.exe". Beginning retry 2 in 1000ms. The process cannot access the file 'C:\Users\netanelma\source\repos\HargalAutomation\HargalAutomation\bin\Debug\chromedriver.exe' because it is being used by another process. The file is locked by: "ChromeDriver (156340), ChromeDriver (149980), ChromeDriver (46208), ChromeDriver (152636)"	HargalAutomation			
