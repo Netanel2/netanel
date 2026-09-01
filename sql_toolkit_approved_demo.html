@@ -1,73 +1,12 @@
-using System;
-using System.Threading;
-using OpenQA.Selenium;
-using OpenQA.Selenium.Chrome;
+--- מתחיל אוטומציה בדפדפן כרום (סלניום 3) ---
+מנסה להזניק את דפדפן כרום...
+? שגיאה במהלך האוטומציה: session not created: This version of ChromeDriver only supports Chrome version 152
+Current browser version is 147.0.7727.56 with binary path C:\Program Files\Google\Chrome\Application\chrome.exe (SessionNotCreated)
 
-namespace HargalAutomation
-{
-    class Program
-    {
-        static void Main(string[] args)
-        {
-            Console.WriteLine("--- מתחיל אוטומציה בדפדפן כרום (סלניום 3) ---");
+התהליך הסתיים. לחץ Enter בחלון זה ליציאה.
 
-            // 1. הגדרת אפשרויות עבור כרום
-            ChromeOptions options = new ChromeOptions();
-            options.AddArgument("--ignore-certificate-errors"); // התעלמות משגיאות אבטחה של אתר פנימי
-            options.AddArgument("--start-maximized"); // פתיחה במסך מלא
 
-            IWebDriver driver = null;
 
-            try
-            {
-                // 2. יצירת שירות מקומי חסין לחסימות אינטרנט של הארגון
-                ChromeDriverService service = ChromeDriverService.CreateDefaultService();
-                service.HideCommandPromptWindow = true; // הסתרת חלון הדרייבר המשני השחור
 
-                Console.WriteLine("מנסה להזניק את דפדפן כרום...");
-                driver = new ChromeDriver(service, options);
 
-                // 3. ניווט לכתובת הלוגין/התנתקות שביקשת
-                string loginUrl = "https://hargal/nh_hargal_gemel/SignIn.aspx?SignOut=True";
-                Console.WriteLine("ניגש לכתובת: " + loginUrl);
-                driver.Navigate().GoToUrl(loginUrl);
 
-                // המתן 2 שניות שהדף יעלה
-                Thread.Sleep(2000);
-
-                // 4. לחיצה על כפתור ה"אישור" של הלוגין (לפי ה-ID שנתת: uxLogin_LoginLinkButton)
-                Console.WriteLine("מנסה ללחוץ על כפתור 'אישור' של הלוגין...");
-                IWebElement loginBtn = driver.FindElement(By.Id("uxLogin_LoginLinkButton"));
-                loginBtn.Click();
-
-                // 5. המתן 4 שניות שהעמוד הראשי ייטען לאחר הלוגין
-                Console.WriteLine("התחברות בוצעה, ממתין לטעינת עמוד הבית...");
-                Thread.Sleep(4000);
-
-                // 6. לחיצה על "עריכת דיווחים" לבדיקה (לפי ה-XPath של הטקסט בתוך הקישור)
-                Console.WriteLine("מנסה ללחוץ על 'עריכת דיווחים' לבדיקה...");
-                IWebElement divuhimBtn = driver.FindElement(By.XPath("//a[contains(text(), 'עריכת דיווחים')]"));
-                divuhimBtn.Click();
-
-                Console.WriteLine("✅ כל הלחיצות בוצעו בהצלחה!");
-
-                // משאיר את הדפדפן פתוח ל-5 שניות כדי שתראה בעיניים שהוא עבר עמוד
-                Thread.Sleep(5000);
-            }
-            catch (Exception ex)
-            {
-                // הצגת השגיאה במידה ומשהו נכשל בדרך
-                Console.WriteLine("❌ שגיאה במהלך האוטומציה: " + ex.Message);
-            }
-            finally
-            {
-                // אם בעתיד תרצה שהדפדפן ייסגר אוטומטית לחלוטין בסיום הריצה, 
-                // פשוט מחק את ה-// מתחילת השורה הבאה:
-                // driver?.Quit();
-            }
-
-            Console.WriteLine("\nהתהליך הסתיים. לחץ Enter בחלון זה ליציאה.");
-            Console.ReadLine();
-        }
-    }
-}
