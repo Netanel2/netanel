@@ -402,6 +402,13 @@ class Program
                 {
                     if (Directory.Exists(docsSourceFolder))
                     {
+                        // *** מנקים את תיקיית היעד קודם - כדי שלא יישארו קבצים ישנים מבדיקות קודמות ***
+                        if (Directory.Exists(docsDestFolder))
+                        {
+                            Console.WriteLine("   מנקה תיקיית יעד קיימת (מבדיקות קודמות)...");
+                            Directory.Delete(docsDestFolder, true);
+                        }
+
                         CopyDirectoryContents(docsSourceFolder, docsDestFolder);
                         Console.WriteLine("התיקייה הועתקה בהצלחה!");
                     }
