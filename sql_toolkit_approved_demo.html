@@ -88,6 +88,7 @@ namespace PhoneExtractorApp
         private ModernButton btnBrowseOutput;
         private ModernButton btnAdd;
         private ModernButton btnRemove;
+        private ModernButton btnReset;
 
         private ProgressBar prgStatus;
         private Label lblProgressText;
@@ -187,12 +188,19 @@ namespace PhoneExtractorApp
             lblProgressText = new Label() { Text = "מוכן לעבודה.", Location = new Point(180, 544), Size = new Size(385, 20), Font = fontRegular, ForeColor = colorTextMuted };
             prgStatus = new ProgressBar() { Location = new Point(20, 575), Size = new Size(545, 12), Style = ProgressBarStyle.Continuous };
 
-            btnExtract = new ModernButton() { Text = "הפעל סריקה חכמה ויצירת קובץ TXT", Location = new Point(145, 610), Size = new Size(310, 45), Font = fontBold, BackColor = colorSuccess, HoverColor = colorSuccessHover, ForeColor = Color.White, BorderRadius = 12 };
+            // כפתור איפוס כללי - מנקה הכל וחוזר למסך ההתחלה
+            btnReset = new ModernButton() { Text = "איפוס", Location = new Point(20, 610), Size = new Size(120, 45), Font = fontBold, BackColor = Color.White, HoverColor = Color.FromArgb(241, 245, 249), ForeColor = colorTextMuted, BorderRadius = 12 };
+            btnReset.FlatAppearance.BorderColor = colorBorder;
+            btnReset.FlatAppearance.BorderSize = 1;
+            btnReset.FlatStyle = FlatStyle.Flat;
+            btnReset.Click += BtnReset_Click;
+
+            btnExtract = new ModernButton() { Text = "הפעל סריקה חכמה ויצירת קובץ TXT", Location = new Point(155, 610), Size = new Size(390, 45), Font = fontBold, BackColor = colorSuccess, HoverColor = colorSuccessHover, ForeColor = Color.White, BorderRadius = 12 };
             btnExtract.Click += BtnExtract_Click;
 
             lblCredit = new Label() { Text = "© Created by NM Software | Studio Edition 2026", Location = new Point(20, 680), Size = new Size(545, 25), Font = fontCredit, ForeColor = colorTextMuted, TextAlign = ContentAlignment.MiddleCenter };
 
-            this.Controls.AddRange(new Control[] { pnlSource, pnlOutput, pnlAdd, lblList, lstRequests, btnRemove, lblProgressText, prgStatus, btnExtract, lblCredit });
+            this.Controls.AddRange(new Control[] { pnlSource, pnlOutput, pnlAdd, lblList, lstRequests, btnRemove, lblProgressText, prgStatus, btnReset, btnExtract, lblCredit });
 
             try { RefreshFiles(); } catch { }
             ValidateForm();
@@ -295,6 +303,38 @@ namespace PhoneExtractorApp
             }
         }
 
+        // אירוע איפוס כללי - מנקה את כל השדות וחוזר למסך ההתחלה
+        private void BtnReset_Click(object sender, EventArgs e)
+        {
+            DialogResult confirm = MessageBox.Show(
+                "האם אתה בטוח שברצונך לאפס את כל הנתונים ולחזור למסך ההתחלה?\nהפעולה תמחק את התיקייה שנבחרה, הקובץ שנבחר ואת רשימת המספרים.",
+                "אישור איפוס",
+                MessageBoxButtons.YesNo,
+                MessageBoxIcon.Question);
+
+            if (confirm != DialogResult.Yes) return;
+
+            // ניקוי שדה תיקיית המקור ורשימת הקבצים
+            txtFolderInput.Text = "";
+            cmbFiles.Items.Clear();
+            targetFolder = "";
+
+            // איפוס תיקיית השמירה לברירת המחדל (שולחן העבודה)
+            txtOutputFolderInput.Text = Environment.GetFolderPath(Environment.SpecialFolder.Desktop);
+
+            // ניקוי שדה הזנת מספר ורשימת המספרים שנצברו
+            txtSearchValue.Text = "";
+            searchValues.Clear();
+            lstRequests.Items.Clear();
+
+            // איפוס פס ההתקדמות והודעת הסטטוס
+            prgStatus.Value = 0;
+            lblProgressText.Text = "מוכן לעבודה.";
+
+            ValidateForm();
+            txtFolderInput.Focus();
+        }
+
         // בדיקה האם לאפשר את כפתור ההפעלה
         private void ValidateForm()
         {
@@ -343,6 +383,7 @@ namespace PhoneExtractorApp
                 btnBrowseOutput.Enabled = false;
                 btnAdd.Enabled = false;
                 btnRemove.Enabled = false;
+                btnReset.Enabled = false;
 
                 Encoding hebrewEncoding = Encoding.GetEncoding(1255);
 
@@ -428,6 +469,7 @@ namespace PhoneExtractorApp
                 btnBrowseOutput.Enabled = true;
                 btnAdd.Enabled = true;
                 btnRemove.Enabled = true;
+                btnReset.Enabled = true;
                 ValidateForm();
             }
             catch (Exception ex)
@@ -438,6 +480,7 @@ namespace PhoneExtractorApp
                 btnBrowseOutput.Enabled = true;
                 btnAdd.Enabled = true;
                 btnRemove.Enabled = true;
+                btnReset.Enabled = true;
                 ValidateForm();
             }
         }
