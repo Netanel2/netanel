@@ -1,1 +1,56 @@
-javascript:(function(){let targetTime="16:00:00";let buttonSelector="#ctl00_ctl00_uxContentPlaceHolder_uxContentPlaceHolder_uxReportOutTime";sessionStorage.setItem("autoClickTarget",targetTime);if(!window.dailyClickTimer){alert("הטיימר החסין מפני ניתוקים (דור 5) הופעל!\n\nהדף יתרענן באמת בכל 3 דקות כדי למנוע ניתוק, והטיימר יתעורר לבד בכל פעם.\n\nשעת יעד: "+targetTime);}function startTimer(){window.dailyClickTimer=setInterval(function(){let now=Date.now();let lastReload=parseInt(sessionStorage.getItem("lastAutoReload")||now);let nowDate=new Date(now);let currentTime=String(nowDate.getHours()).padStart(2,'0')+":"+String(nowDate.getMinutes()).padStart(2,'0')+":"+String(nowDate.getSeconds()).padStart(2,'0');let target=sessionStorage.getItem("autoClickTarget")||targetTime;if(now-lastReload>=3*60*1000){sessionStorage.setItem("lastAutoReload",now);console.log("מבצע רענון דף מלא למניעת ניתוק...");window.location.reload();return;}if(currentTime>=target){let btn=document.querySelector(buttonSelector);if(btn){clearInterval(window.dailyClickTimer);sessionStorage.removeItem("autoClickTarget");sessionStorage.removeItem("lastAutoReload");btn.click();}}},1000);}if(!sessionStorage.getItem("lastAutoReload")){sessionStorage.setItem("lastAutoReload",Date.now());}startTimer();})();
+javascript:(function(){
+    let targetTime = "16:00:00"; // שעת היעד - שנה כאן לפי הצורך
+    let buttonSelector = "#ctl00_ctl00_uxContentPlaceHolder_uxContentPlaceHolder_uxReportOutTime";
+
+    sessionStorage.setItem("autoClickTarget", targetTime);
+
+    if (!window.dailyClickTimer) {
+        alert("הטיימר הופעל!\n\nהדף יתרענן באמת כל 3 דקות כדי למנוע ניתוק.\nשעת יעד: " + targetTime);
+    }
+
+    function startTimer() {
+        window.dailyClickTimer = setInterval(function () {
+            let now = Date.now();
+            let lastReload = parseInt(sessionStorage.getItem("lastAutoReload") || now);
+            let nowDate = new Date(now);
+            let currentTime = String(nowDate.getHours()).padStart(2, '0') + ":" +
+                               String(nowDate.getMinutes()).padStart(2, '0') + ":" +
+                               String(nowDate.getSeconds()).padStart(2, '0');
+            let target = sessionStorage.getItem("autoClickTarget") || targetTime;
+
+            // כל 3 דקות - "רענון שקט": פונים לשרת בדיוק כמו ברענון אמיתי,
+            // אבל בלי שהדפדפן ינווט מחדש - כך הטיימר הזה ממשיך לרוץ בלי הפסקה
+            if (now - lastReload >= 3 * 60 * 1000) {
+                sessionStorage.setItem("lastAutoReload", now);
+                console.log("שולח רענון שקט לשרת (בלי לנווט מחדש)...");
+                fetch(window.location.href, { credentials: "include", cache: "no-store" })
+                    .then(function (r) { return r.text(); })
+                    .then(function (html) {
+                        // מחליפים את תוכן הדף בתוכן החדש שהתקבל מהשרת,
+                        // בלי לנווט מחדש - כך הקוד הזה עצמו ממשיך לרוץ
+                        let parser = new DOMParser();
+                        let newDoc = parser.parseFromString(html, "text/html");
+                        document.documentElement.innerHTML = newDoc.documentElement.innerHTML;
+                    })
+                    .catch(function (err) { console.error("שגיאת רענון שקט:", err); });
+            }
+
+            // הגענו לשעת היעד - לוחצים על הכפתור
+            if (currentTime >= target) {
+                let btn = document.querySelector(buttonSelector);
+                if (btn) {
+                    clearInterval(window.dailyClickTimer);
+                    sessionStorage.removeItem("autoClickTarget");
+                    sessionStorage.removeItem("lastAutoReload");
+                    btn.click();
+                }
+            }
+        }, 1000);
+    }
+
+    if (!sessionStorage.getItem("lastAutoReload")) {
+        sessionStorage.setItem("lastAutoReload", Date.now());
+    }
+
+    startTimer();
+})();
