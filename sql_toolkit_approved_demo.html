@@ -168,7 +168,7 @@ namespace AutoReportOut
                 {
                     string script = $"var btn = document.querySelector('{settings.ButtonSelector}'); if(btn) {{ btn.click(); 'clicked'; }} else {{ 'not-found'; }}";
                     string result = await webView.CoreWebView2.ExecuteScriptAsync(script);
-                    statusLabel.Text = "בוצעה לחיצה ✔ (תוצאה: " + result + ") - אפשר לסגור את החלון";
+                    statusLabel.Text = $"בוצעה לחיצה ✔ (תוצאה: {result}) - אפשר לסגור את החלון";
                 }
                 catch (Exception ex)
                 {
