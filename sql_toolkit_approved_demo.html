@@ -1,3 +1,184 @@
-Severity	Code	Description	Project	File	Line	Suppression State
-Error		Cannot create the output file "C:\Users\netanelma\source\repos\Gemel_Support\Support-New\Support-New\New folder\Support-New\Support-New\bin\Development\Daily_Status_Monitor_New.dtsx": Could not find file 'C:\Users\netanelma\source\repos\Gemel_Support\Support-New\Support-New\New folder\Support-New\Support-New\Daily_Status_Monitor_New.dtsx'..			0	
-Error		An error has occurred while connecting home.msdb.netanelma: Exception from HRESULT: 0xC0202009.		DailyStatus	0	
+using System;
+using System.IO;
+using System.Data;
+using System.Collections.Generic;
+using Microsoft.SqlServer.Dts.Runtime;
+
+namespace ST_9d8baa5dd12d4aaea68cd54aef9ce035
+{
+    [Microsoft.SqlServer.Dts.Tasks.ScriptTask.SSISScriptTaskEntryPointAttribute]
+    public partial class ScriptMain : Microsoft.SqlServer.Dts.Tasks.ScriptTask.VSTARTScriptObjectModelBase
+    {
+        public void Main()
+        {
+            try
+            {
+                DateTime now = DateTime.Now;
+
+                // 1. הגדרת הנתיב הפיזי של קובץ ההפקדות האוטומטיות
+                string depositFolderPath = @"\\psrs\Banks Source Files\Automated Deposits\ExportDepositTargetToBank";
+                string currentFolderDate = now.ToString("yyyy.MM.dd");
+                string fullPathToCheck = Path.Combine(depositFolderPath, currentFolderDate);
+
+                // 2. בדיקה פיזית - האם התיקייה קיימת והאם יש בתוכה קבצי בנקים של היום?
+                bool isFileExists = false;
+                if (Directory.Exists(fullPathToCheck))
+                {
+                    string[] files = Directory.GetFiles(fullPathToCheck, "AL.BLL*.*");
+                    if (files.Length > 0)
+                    {
+                        isFileExists = true;
+                    }
+                }
+
+                // 3. חישוב אוטומטי של ימי העסקים שעברו מתחילת החודש הנוכחי (כולל החרגת חגים קשיחים)
+                int passedBusinessDays = GetPassedBusinessDays(now);
+
+                string finalStatusRes9 = "";
+
+                // חוק 1: אם הקובץ קיים פיזית בתיקייה - הכל רגיל! מציגים "הסתיים בהצלחה"
+                if (isFileExists)
+                {
+                    finalStatusRes9 = "הסתיים בהצלחה";
+                }
+                else
+                {
+                    // חוק 2: הקובץ חסר בתיקייה. 
+                    // בודקים האם אנחנו בתוך 4 ימי העסקים הראשונים של החודש (חלון ימי השיערוך)
+                    if (passedBusinessDays <= 4)
+                    {
+                        // קובץ חסר + תחילת החודש = רשמית ימי השיערוך! (גם אם היום יום רביעי)
+                        finalStatusRes9 = "יתוזמן לאחר ימי השיערוך";
+                    }
+                    else
+                    {
+                        // קובץ חסר + ימי חול רגילים בהמשך החודש = הג'וב פשוט עדיין לא רץ היום / איחר
+                        finalStatusRes9 = "טרם הסתיים";
+                    }
+                }
+
+                // 4. עדכון משתנה ה-SSIS של סעיף 9 בסיום החישוב
+                Dts.Variables["User::Status_Res9"].Value = finalStatusRes9;
+
+                // ===== סעיפים 3, 6, 7, 8, 10 - בדיקת קיום קבצים בתיקיות הרשת =====
+                // כל בדיקה עטופה בהגנה נפרדת (CheckFolderStatus / CheckDualFolderStatus):
+                // אם שרת רשת מסוים לא זמין רגעית, הסעיף הזה בלבד יסומן "לא ניתן לבדוק",
+                // וזה לא מפיל את כל המשימה (וכך שאר הדוח + המייל ימשיכו כרגיל).
+                DateTime yesterday = now.AddDays(-1);
+
+                // סעיף 3: קליטת נספח B
+                string res3Folder = Path.Combine(
+                    @"\\samurai\Safes\From_TG\PensionTransactionAndRequest\Archive",
+                    now.ToString("yyyy.MM.dd"));
+                Dts.Variables["User::Status_Res3"].Value = CheckFolderStatus(res3Folder, "*.*");
+
+                // סעיף 6: היזון חוזר משיכות (בדיקה כפולה: היום בפורמט ddMMyyyy, או אתמול בפורמט dd.MM.yyyy)
+                string res6Main = Path.Combine(
+                    @"\\psrs\G$\Generix\GENERIX SSIS FILES\Export Files\Withdrawal\HizunHozer\Archive",
+                    now.ToString("ddMMyyyy"));
+                string res6Alt = Path.Combine(
+                    @"\\psrs\G$\Generix\GENERIX SSIS FILES\Export Files\Withdrawal\Archive",
+                    yesterday.ToString("dd.MM.yyyy"));
+                Dts.Variables["User::Status_Res6"].Value = CheckDualFolderStatus(res6Main, res6Alt, "*.*");
+
+                // סעיף 7: היזון חוזר העברות בין מסלולים (אותה לוגיקה כפולה)
+                string res7Main = Path.Combine(
+                    @"\\psrs\G$\Generix\GENERIX SSIS FILES\Export Files\Transfer Between Courses\HizunHozer\Archive",
+                    now.ToString("ddMMyyyy"));
+                string res7Alt = Path.Combine(
+                    @"\\psrs\G$\Generix\GENERIX SSIS FILES\Export Files\Transfer Between Courses\Archive",
+                    yesterday.ToString("dd.MM.yyyy"));
+                Dts.Variables["User::Status_Res7"].Value = CheckDualFolderStatus(res7Main, res7Alt, "*.*");
+
+                // סעיף 8: היזון חוזר הוראות קבע (בדיקה כפולה, שני הנתיבים בפורמט ddMMyyyy בלי נקודות)
+                string res8Main = Path.Combine(
+                    @"\\psrs\G$\Generix\GENERIX SSIS FILES\Export Files\Standing Order\Standing Order To Noga\HizunHozer\Archive",
+                    now.ToString("ddMMyyyy"));
+                string res8Alt = Path.Combine(
+                    @"\\psrs\G$\Generix\GENERIX SSIS FILES\Export Files\Standing Order\Standing Order To Noga\Archive",
+                    yesterday.ToString("ddMMyyyy"));
+                Dts.Variables["User::Status_Res8"].Value = CheckDualFolderStatus(res8Main, res8Alt, "*.*");
+
+                // סעיף 10: קליטת העברות החוצה פנסיה ל-CRM
+                string res10Folder = Path.Combine(
+                    @"\\psrs\g$\Pension\TransferOutPension\Archive",
+                    now.ToString("yyyyMMdd"));
+                Dts.Variables["User::Status_Res10"].Value = CheckFolderStatus(res10Folder, "*.*");
+
+                Dts.TaskResult = (int)Microsoft.SqlServer.Dts.Runtime.DTSExecResult.Success;
+            }
+            catch (Exception ex)
+            {
+                Dts.Events.FireError(0, "Script Error", "Error in CheckNetworkFolders: " + ex.Message, "", 0);
+                Dts.TaskResult = (int)Microsoft.SqlServer.Dts.Runtime.DTSExecResult.Failure;
+            }
+        }
+
+        // פונקציית עזר לחישוב ימי עסקים שעברו מתחילת החודש הנוכחי
+        private int GetPassedBusinessDays(DateTime dt)
+        {
+            int businessDays = 0;
+            DateTime startOfMonth = new DateTime(dt.Year, dt.Month, 1);
+
+            // רשימת חגים קשיחים בארגון לשנת 2026 (בפורמט YYYYMMDD)
+            HashSet<string> holidays = new HashSet<string>() {
+                "20260402", "20260408", "20260409", "20260422", "20260521", "20260522",
+                "20260911", "20260912", "20260913", "20260920", "20260921", "20260925",
+                "20260926", "20261002", "20261003"
+            };
+
+            for (DateTime date = startOfMonth; date <= dt.Date; date = date.AddDays(1))
+            {
+                string dateStr = date.ToString("yyyyMMdd");
+
+                // ימי עסקים הם לא שישי, לא שבת, ושלא מופיעים ברשימת החגים
+                if (date.DayOfWeek != DayOfWeek.Friday &&
+                    date.DayOfWeek != DayOfWeek.Saturday &&
+                    !holidays.Contains(dateStr))
+                {
+                    businessDays++;
+                }
+            }
+            return businessDays;
+        }
+
+        // בודקת אם קיימת תיקייה ובתוכה קובץ שתואם לתבנית - בצורה בטוחה.
+        // אם יש תקלת גישה לרשת (שרת לא זמין וכו') - לא מפילים את כל המשימה,
+        // אלא מחזירים טקסט ברור שאומר שלא הצלחנו לבדוק.
+        private string CheckFolderStatus(string folderPath, string searchPattern)
+        {
+            try
+            {
+                if (Directory.Exists(folderPath))
+                {
+                    string[] files = Directory.GetFiles(folderPath, searchPattern);
+                    if (files.Length > 0)
+                    {
+                        return "הסתיים בהצלחה";
+                    }
+                }
+                return "טרם הסתיים";
+            }
+            catch (Exception)
+            {
+                return "לא ניתן לבדוק (שגיאת גישה לרשת)";
+            }
+        }
+
+        // כנ"ל, אך בודקת שני נתיבים אפשריים (למשל: נתיב של היום ונתיב חלופי של אתמול).
+        // מספיק שיימצא קובץ באחד מהם כדי לסמן "הסתיים בהצלחה".
+        private string CheckDualFolderStatus(string folderPathA, string folderPathB, string searchPattern)
+        {
+            try
+            {
+                bool foundA = Directory.Exists(folderPathA) && Directory.GetFiles(folderPathA, searchPattern).Length > 0;
+                bool foundB = Directory.Exists(folderPathB) && Directory.GetFiles(folderPathB, searchPattern).Length > 0;
+                return (foundA || foundB) ? "הסתיים בהצלחה" : "טרם הסתיים";
+            }
+            catch (Exception)
+            {
+                return "לא ניתן לבדוק (שגיאת גישה לרשת)";
+            }
+        }
+    }
+}
