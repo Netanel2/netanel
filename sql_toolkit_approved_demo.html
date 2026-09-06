@@ -181,9 +181,9 @@ namespace PhoneExtractorApp
 
             // --- כרטיסייה ג': הזנת ערכים ---
             Panel pnlAdd = CreateCard(20, 335, 545, 85);
-            Label lblSection3 = new Label() { Text = "שלב ג': הוספת תז או מספר פלאפון", Location = new Point(15, 12), Size = new Size(300, 20), Font = fontBold, ForeColor = colorPrimary };
+            Label lblSection3 = new Label() { Text = "שלב ג': הוספת מספר פלאפון, תז או שם לחיפוש", Location = new Point(15, 12), Size = new Size(320, 20), Font = fontBold, ForeColor = colorPrimary };
 
-            Label lblValue = new Label() { Text = "מספר פלאפון:", Location = new Point(15, 48), Size = new Size(110, 20), Font = fontRegular, ForeColor = colorTextMuted, TextAlign = ContentAlignment.TopRight };
+            Label lblValue = new Label() { Text = "מספר / שם:", Location = new Point(15, 48), Size = new Size(110, 20), Font = fontRegular, ForeColor = colorTextMuted, TextAlign = ContentAlignment.TopRight };
             txtSearchValue = new TextBox() { Location = new Point(135, 45), Size = new Size(265, 25), Font = fontRegular, BorderStyle = BorderStyle.FixedSingle };
             txtSearchValue.KeyDown += (s, e) => { if (e.KeyCode == Keys.Enter) { BtnAdd_Click(s, e); e.SuppressKeyPress = true; } };
 
@@ -193,7 +193,7 @@ namespace PhoneExtractorApp
             pnlAdd.Controls.AddRange(new Control[] { lblSection3, lblValue, txtSearchValue, btnAdd });
 
             // --- רשימת דרישות, חיווי וקרדיט ---
-            Label lblList = new Label() { Text = "רשימת המספרים שנצברו בזיכרון:", Location = new Point(20, 435), Size = new Size(300, 20), Font = fontBold, ForeColor = colorTextDark };
+            Label lblList = new Label() { Text = "רשימת הערכים לחיפוש (מספרים ושמות):", Location = new Point(20, 435), Size = new Size(340, 20), Font = fontBold, ForeColor = colorTextDark };
             lstRequests = new ListBox() { Location = new Point(20, 460), Size = new Size(545, 100), Font = fontRegular, BorderStyle = BorderStyle.FixedSingle, ItemHeight = 20 };
 
             btnRemove = new ModernButton() { Text = "מחק מספר מסומן", Location = new Point(20, 570), Size = new Size(140, 28), Font = fontBold, BackColor = Color.White, HoverColor = colorDanger, ForeColor = colorDanger };
@@ -286,26 +286,51 @@ namespace PhoneExtractorApp
             ValidateForm();
         }
 
-        // אירוע הוספת מספר פלאפון לרשימת החיפוש
+        // אירוע הוספת מספר פלאפון או שם לרשימת החיפוש
+        // התוכנה מזהה אוטומטית: אם הוזנו רק ספרות (וסימנים כמו מקף/רווח/פלוס) - זה מטופל כמספר פלאפון
+        // אם הוזנו אותיות (עברית או אנגלית) - זה מטופל כשם, ונשמר בדיוק כפי שהוקלד
         private void BtnAdd_Click(object sender, EventArgs e)
         {
             string rawVal = txtSearchValue.Text.Trim();
-            string cleanVal = Regex.Replace(rawVal, @"[^\d]", "");
 
-            if (string.IsNullOrEmpty(cleanVal))
+            if (string.IsNullOrEmpty(rawVal))
             {
-                MessageBox.Show("אנא הזן מספר פלאפון תקין לחיפוש (המכיל ספרות).", "שדה ריק", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBox.Show("אנא הזן מספר פלאפון, תז או שם לחיפוש.", "שדה ריק", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
 
-            if (searchValues.Contains(cleanVal))
+            // בדיקה האם הערך שהוזן הוא מספרי בלבד (מותר: ספרות, מקף, רווח, פלוס, סוגריים)
+            bool isNumeric = Regex.IsMatch(rawVal, @"^[\d\s\-\+\(\)]+$") && Regex.IsMatch(rawVal, @"\d");
+
+            string valueToStore;
+            string displayPrefix;
+
+            if (isNumeric)
             {
-                MessageBox.Show("המספר הזה כבר קיים ברשימת החיפוש שלך.", "ערך כפול", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                string cleanVal = Regex.Replace(rawVal, @"[^\d]", "");
+                if (string.IsNullOrEmpty(cleanVal))
+                {
+                    MessageBox.Show("אנא הזן מספר פלאפון תקין לחיפוש (המכיל ספרות).", "שדה לא תקין", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
+                valueToStore = cleanVal;
+                displayPrefix = "נייד מבוקש";
+            }
+            else
+            {
+                valueToStore = rawVal;
+                displayPrefix = "שם מבוקש";
+            }
+
+            bool alreadyExists = searchValues.Exists(v => string.Equals(v, valueToStore, StringComparison.OrdinalIgnoreCase));
+            if (alreadyExists)
+            {
+                MessageBox.Show("הערך הזה כבר קיים ברשימת החיפוש שלך.", "ערך כפול", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
 
-            searchValues.Add(cleanVal);
-            lstRequests.Items.Add($"  נייד מבוקש: {rawVal}");
+            searchValues.Add(valueToStore);
+            lstRequests.Items.Add($"  {displayPrefix}: {rawVal}");
 
             txtSearchValue.Text = "";
             txtSearchValue.Focus();
