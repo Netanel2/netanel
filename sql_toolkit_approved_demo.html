@@ -94,6 +94,10 @@ namespace PhoneExtractorApp
         private CheckBox chkAllFiles;
         private CheckBox chkFullCopy;
 
+        private TextBox txtSplitFile;
+        private ModernButton btnBrowseSplitFile;
+        private ModernButton btnSplitFile;
+
         private ProgressBar prgStatus;
         private Label lblProgressText;
         private Label lblCredit;
@@ -128,7 +132,7 @@ namespace PhoneExtractorApp
         public ExtractionForm()
         {
             this.Text = "  NM Extractor Studio - Pro 2026";
-            this.Size = new Size(600, 855);
+            this.Size = new Size(600, 930);
             this.StartPosition = FormStartPosition.CenterScreen;
             this.FormBorderStyle = FormBorderStyle.FixedDialog;
             this.MaximizeBox = false;
@@ -227,9 +231,26 @@ namespace PhoneExtractorApp
             btnExtract = new ModernButton() { Text = "הפעל סריקה חכמה ויצירת קובץ TXT", Location = new Point(155, 670), Size = new Size(390, 45), Font = fontBold, BackColor = colorSuccess, HoverColor = colorSuccessHover, ForeColor = Color.White, BorderRadius = 12 };
             btnExtract.Click += BtnExtract_Click;
 
-            lblCredit = new Label() { Text = "© Created by NM Software | Studio Edition 2026", Location = new Point(20, 785), Size = new Size(545, 25), Font = fontCredit, ForeColor = colorTextMuted, TextAlign = ContentAlignment.MiddleCenter };
+            // --- כרטיסייה נוספת: פיצול קובץ גדול לשני חלקים ---
+            // שימושי כשקובץ הפלט (למשל אחרי "חלץ את כל תוכן הקובץ") גדול מדי לפתיחה בעורך רגיל כמו Notepad++
+            Panel pnlSplit = CreateCard(20, 725, 545, 115);
+            Label lblSplitTitle = new Label() { Text = "כלי נוסף: פיצול קובץ כבד לשני חלקים (לפתיחה נוחה בעורך טקסט רגיל)", Location = new Point(15, 10), Size = new Size(515, 20), Font = fontBold, ForeColor = colorPrimary };
 
-            this.Controls.AddRange(new Control[] { pnlSource, pnlOutput, pnlAdd, lblList, lstRequests, btnRemove, lblProgressText, prgStatus, btnReset, btnExtract, lblCredit });
+            Label lblSplitFile = new Label() { Text = "קובץ לפיצול:", Location = new Point(15, 45), Size = new Size(110, 20), Font = fontRegular, ForeColor = colorTextMuted, TextAlign = ContentAlignment.TopRight };
+            txtSplitFile = new TextBox() { Location = new Point(135, 42), Size = new Size(265, 25), Font = fontRegular, BorderStyle = BorderStyle.FixedSingle, ReadOnly = true };
+
+            btnBrowseSplitFile = new ModernButton() { Text = "בחר קובץ...", Location = new Point(415, 40), Size = new Size(110, 27), Font = fontBold, BackColor = colorPrimary, HoverColor = colorPrimaryHover, ForeColor = Color.White };
+            btnBrowseSplitFile.Click += BtnBrowseSplitFile_Click;
+
+            btnSplitFile = new ModernButton() { Text = "פצל לשני קבצים (נשמר בנתיב השמירה משלב ב')", Location = new Point(15, 78), Size = new Size(510, 28), Font = fontBold, BackColor = colorPrimary, HoverColor = colorPrimaryHover, ForeColor = Color.White, BorderRadius = 8 };
+            btnSplitFile.Enabled = false;
+            btnSplitFile.Click += BtnSplitFile_Click;
+
+            pnlSplit.Controls.AddRange(new Control[] { lblSplitTitle, lblSplitFile, txtSplitFile, btnBrowseSplitFile, btnSplitFile });
+
+            lblCredit = new Label() { Text = "© Created by NM Software | Studio Edition 2026", Location = new Point(20, 855), Size = new Size(545, 25), Font = fontCredit, ForeColor = colorTextMuted, TextAlign = ContentAlignment.MiddleCenter };
+
+            this.Controls.AddRange(new Control[] { pnlSource, pnlOutput, pnlAdd, lblList, lstRequests, btnRemove, lblProgressText, prgStatus, btnReset, btnExtract, pnlSplit, lblCredit });
 
             progressTimer = new System.Windows.Forms.Timer();
             progressTimer.Interval = 200;
@@ -430,6 +451,8 @@ namespace PhoneExtractorApp
             txtFolderInput.Enabled = enabled;
             txtOutputFolderInput.Enabled = enabled;
             txtSearchValue.Enabled = enabled && !chkFullCopy.Checked;
+            btnBrowseSplitFile.Enabled = enabled;
+            btnSplitFile.Enabled = enabled && File.Exists(txtSplitFile.Text.Trim());
 
             if (enabled)
             {
@@ -439,6 +462,109 @@ namespace PhoneExtractorApp
             {
                 btnExtract.Enabled = false;
                 btnExtract.Cursor = Cursors.No;
+            }
+        }
+
+        // אירוע בחירת קובץ כבד לפיצול (דיאלוג בחירת קובץ רגיל)
+        private void BtnBrowseSplitFile_Click(object sender, EventArgs e)
+        {
+            using (OpenFileDialog ofd = new OpenFileDialog())
+            {
+                ofd.Title = "בחר את הקובץ הכבד שברצונך לפצל לשניים";
+                ofd.Filter = "קבצי טקסט (*.txt)|*.txt|כל הקבצים (*.*)|*.*";
+
+                if (ofd.ShowDialog() == DialogResult.OK)
+                {
+                    txtSplitFile.Text = ofd.FileName;
+                    btnSplitFile.Enabled = true;
+                }
+            }
+        }
+
+        // אירוע פיצול קובץ כבד לשני חלקים, לפי גודל בקירוב (כך שכל חלק ייפתח בקלות בעורך טקסט רגיל)
+        private void BtnSplitFile_Click(object sender, EventArgs e)
+        {
+            string sourcePath = txtSplitFile.Text.Trim();
+            if (string.IsNullOrEmpty(sourcePath) || !File.Exists(sourcePath))
+            {
+                MessageBox.Show("אנא בחר קובץ קיים לפיצול.", "לא נבחר קובץ", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            string outputFolder = txtOutputFolderInput.Text.Trim();
+            if (!Directory.Exists(outputFolder))
+            {
+                MessageBox.Show("נתיב השמירה שהוגדר בשלב ב' לא קיים. אנא בחר תיקיית שמירה תקינה שם.", "שגיאה", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
+
+            string baseName = Path.GetFileNameWithoutExtension(sourcePath);
+            string part1Path = Path.Combine(outputFolder, baseName + "_חלק1.txt");
+            string part2Path = Path.Combine(outputFolder, baseName + "_חלק2.txt");
+
+            SetControlsEnabled(false);
+            prgStatus.Value = 0;
+            lblProgressText.Text = "מתחיל לפצל את הקובץ...";
+
+            try
+            {
+                Encoding hebrewEncoding = Encoding.GetEncoding(1255);
+                long totalSize = new FileInfo(sourcePath).Length;
+                long halfSize = totalSize / 2;
+                long bytesWrittenPart1 = 0;
+                long bytesProcessed = 0;
+                bool writingPart1 = true;
+                int updateCounter = 0;
+
+                using (var reader = new StreamReader(sourcePath, hebrewEncoding))
+                using (var writer1 = new StreamWriter(part1Path, false, hebrewEncoding))
+                using (var writer2 = new StreamWriter(part2Path, false, hebrewEncoding))
+                {
+                    string line;
+                    while ((line = reader.ReadLine()) != null)
+                    {
+                        long lineBytes = hebrewEncoding.GetByteCount(line) + 2;
+                        bytesProcessed += lineBytes;
+                        updateCounter++;
+
+                        if (writingPart1)
+                        {
+                            writer1.WriteLine(line);
+                            bytesWrittenPart1 += lineBytes;
+                            if (bytesWrittenPart1 >= halfSize)
+                            {
+                                writingPart1 = false;
+                            }
+                        }
+                        else
+                        {
+                            writer2.WriteLine(line);
+                        }
+
+                        if (updateCounter >= 5000)
+                        {
+                            updateCounter = 0;
+                            int percent = totalSize > 0 ? (int)((bytesProcessed * 100) / totalSize) : 100;
+                            if (percent > 100) percent = 100;
+                            prgStatus.Value = percent;
+                            lblProgressText.Text = $"מפצל את הקובץ... ({percent}%)";
+                            Application.DoEvents();
+                        }
+                    }
+                }
+
+                prgStatus.Value = 100;
+                lblProgressText.Text = "הפיצול הושלם בהצלחה!";
+
+                MessageBox.Show($"🎉 הקובץ פוצל בהצלחה לשני חלקים על ידי NM Software!\n\nחלק ראשון:\n{part1Path}\n\nחלק שני:\n{part2Path}\n\nכל חלק אמור להיפתח בקלות בעורך טקסט רגיל כמו Notepad++.", "הצלחה - NM Software", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("שגיאה בפיצול הקובץ:\n" + ex.Message, "שגיאה", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+            finally
+            {
+                SetControlsEnabled(true);
             }
         }
 
