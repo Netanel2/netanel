@@ -1,897 +1,288 @@
+#region Help:  Introduction to the script task
+/* The Script Task allows you to perform virtually any operation that can be accomplished in a C# .NET application.
+ * By default, Enterprise Library logging is enabled for this task.
+ */
+#endregion
+
 using System;
+using System.Data;
+using System.Data.OleDb;
 using System.IO;
 using System.Text;
-using System.Collections.Generic;
-using System.Text.RegularExpressions;
-using System.Windows.Forms;
-using System.Drawing;
-using System.Drawing.Drawing2D;
-using System.Threading;
-using System.Threading.Tasks;
+using Microsoft.SqlServer.Dts.Runtime;
 
-namespace PhoneExtractorApp
+namespace ST_ba614c8a423f4c51b533c611fcae2999
 {
-    internal static class Program
+    [Microsoft.SqlServer.Dts.Tasks.ScriptTask.SSISScriptTaskEntryPointAttribute]
+    public partial class ScriptMain : Microsoft.SqlServer.Dts.Tasks.ScriptTask.VSTARTScriptObjectModelBase
     {
-        [System.Runtime.InteropServices.DllImport("user32.dll")]
-        private static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
-
-        [System.Runtime.InteropServices.DllImport("kernel32.dll")]
-        private static extern IntPtr GetConsoleWindow();
-
-        private const int SW_HIDE = 0;
-
-        [STAThread]
-        static void Main()
-        {
-            IntPtr handle = GetConsoleWindow();
-            if (handle != IntPtr.Zero)
-            {
-                ShowWindow(handle, SW_HIDE);
-            }
-
-            Application.EnableVisualStyles();
-            Application.SetCompatibleTextRenderingDefault(false);
-            Application.Run(new ExtractionForm());
-        }
-    }
-
-    public class ModernButton : Button
-    {
-        public int BorderRadius { get; set; } = 8;
-        public Color HoverColor { get; set; }
-        private bool isHovered = false;
-
-        public ModernButton()
-        {
-            this.FlatStyle = FlatStyle.Flat;
-            this.FlatAppearance.BorderSize = 0;
-            this.Cursor = Cursors.Hand;
-            this.MouseEnter += (s, e) => { isHovered = true; this.Invalidate(); };
-            this.MouseLeave += (s, e) => { isHovered = false; this.Invalidate(); };
-        }
-
-        protected override void OnPaint(PaintEventArgs pevent)
-        {
-            Graphics g = pevent.Graphics;
-            g.SmoothingMode = SmoothingMode.AntiAlias;
-
-            Color currentBg = isHovered && this.Enabled ? HoverColor : (this.Enabled ? this.BackColor : Color.FromArgb(200, 214, 229));
-
-            using (GraphicsPath path = new GraphicsPath())
-            {
-                path.AddArc(0, 0, BorderRadius, BorderRadius, 180, 90);
-                path.AddArc(this.Width - BorderRadius, 0, BorderRadius, BorderRadius, 270, 90);
-                path.AddArc(this.Width - BorderRadius, this.Height - BorderRadius, BorderRadius, BorderRadius, 0, 90);
-                path.AddArc(0, this.Height - BorderRadius, BorderRadius, BorderRadius, 90, 90);
-                path.CloseAllFigures();
-
-                this.Region = new Region(path);
-
-                using (SolidBrush brush = new SolidBrush(currentBg))
-                {
-                    g.FillPath(brush, path);
-                }
-            }
-
-            TextRenderer.DrawText(g, this.Text, this.Font, this.ClientRectangle, this.ForeColor, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
-        }
-    }
-    public class ExtractionForm : Form
-    {
-        private TextBox txtFolderInput;
-        private ComboBox cmbFiles;
-        private TextBox txtOutputFolderInput;
-        private TextBox txtSearchValue;
-        private ListBox lstRequests;
-
-        private ModernButton btnExtract;
-        private ModernButton btnScan;
-        private ModernButton btnBrowseOutput;
-        private ModernButton btnAdd;
-        private ModernButton btnRemove;
-        private ModernButton btnReset;
-        private CheckBox chkAllFiles;
-        private CheckBox chkFullCopy;
-
-        private TextBox txtSplitFile;
-        private ModernButton btnBrowseSplitFile;
-        private ModernButton btnSplitFile;
-
-        private ProgressBar prgStatus;
-        private Label lblProgressText;
-        private Label lblCredit;
-
-        private string targetFolder = "";
-        private List<string> searchValues = new List<string>();
-
-        // תמיכה בסריקה מקבילה של כל הקבצים בתיקייה
-        private long totalBytesAll = 0;
-        private long bytesReadAllShared = 0;
-        private int totalMatchCountShared = 0;
-        private readonly object writeLock = new object();
-        private System.Windows.Forms.Timer progressTimer;
-
-        // פלטת צבעים יוקרתית ומעודכנת (Slate UI Palette)
-        private Color colorBackground = Color.FromArgb(248, 250, 252);
-        private Color colorCard = Color.White;
-        private Color colorPrimary = Color.FromArgb(79, 70, 229);
-        private Color colorPrimaryHover = Color.FromArgb(67, 56, 202);
-        private Color colorSuccess = Color.FromArgb(16, 185, 129);
-        private Color colorSuccessHover = Color.FromArgb(5, 150, 105);
-        private Color colorDanger = Color.FromArgb(239, 68, 68);
-        private Color colorTextDark = Color.FromArgb(15, 23, 42);
-        private Color colorTextMuted = Color.FromArgb(100, 116, 139);
-        private Color colorBorder = Color.FromArgb(226, 232, 240);
-
-        private Font fontRegular = new Font("Segoe UI", 10F, FontStyle.Regular);
-        private Font fontBold = new Font("Segoe UI", 10F, FontStyle.Bold);
-        private Font fontTitle = new Font("Segoe UI", 14F, FontStyle.Bold);
-        private Font fontCredit = new Font("Segoe UI", 9F, FontStyle.Bold | FontStyle.Italic);
-
-        public ExtractionForm()
-        {
-            this.Text = "  NM Extractor Studio - Pro 2026";
-            this.Size = new Size(600, 930);
-            this.StartPosition = FormStartPosition.CenterScreen;
-            this.FormBorderStyle = FormBorderStyle.FixedDialog;
-            this.MaximizeBox = false;
-            this.BackColor = colorBackground;
-
-            // הגדרת כיווניות עברית מלאה לחלון
-            this.RightToLeft = RightToLeft.Yes;
-            this.RightToLeftLayout = true;
-
-            Label lblMainTitle = new Label() { Text = "חילוץ מקבצים", Location = new Point(20, 15), Size = new Size(545, 30), Font = fontTitle, ForeColor = colorPrimary, TextAlign = ContentAlignment.TopCenter };
-            this.Controls.Add(lblMainTitle);
-
-            // --- כרטיסייה א': מקור מידע ---
-            Panel pnlSource = CreateCard(20, 55, 545, 195);
-            Label lblSection1 = new Label() { Text = "שלב א': מקור הנתונים", Location = new Point(15, 12), Size = new Size(200, 20), Font = fontBold, ForeColor = colorPrimary };
-
-            // תיקון מרווחים קריטי: הגדלת ה-Size ל-110 כדי למנוע דריסת טקסט בעברית
-            Label lblFolder = new Label() { Text = "נתיב תיקייה:", Location = new Point(15, 48), Size = new Size(110, 20), Font = fontRegular, ForeColor = colorTextMuted, TextAlign = ContentAlignment.TopRight };
-            txtFolderInput = new TextBox() { Location = new Point(135, 45), Size = new Size(265, 25), Font = fontRegular, BorderStyle = BorderStyle.FixedSingle };
-            
-
-            btnScan = new ModernButton() { Text = "סרוק תיקייה", Location = new Point(415, 43), Size = new Size(110, 27), Font = fontBold, BackColor = colorPrimary, HoverColor = colorPrimaryHover, ForeColor = Color.White };
-            btnScan.Click += BtnScan_Click;
-
-            Label lblFile = new Label() { Text = "בחר קובץ מקור:", Location = new Point(15, 92), Size = new Size(110, 20), Font = fontRegular, ForeColor = colorTextMuted, TextAlign = ContentAlignment.TopRight };
-            cmbFiles = new ComboBox() { Location = new Point(135, 89), Size = new Size(390, 25), Font = fontRegular, DropDownStyle = ComboBoxStyle.DropDownList };
-            cmbFiles.SelectedIndexChanged += (s, e) => ValidateForm();
-
-            chkAllFiles = new CheckBox() { Text = "סרוק את כל הקבצים בתיקייה (במקביל, לקובץ תוצאות אחד מאוחד)", Location = new Point(135, 120), Size = new Size(390, 24), Font = fontRegular, ForeColor = colorTextDark };
-            chkAllFiles.CheckedChanged += (s, e) =>
-            {
-                cmbFiles.Enabled = !chkAllFiles.Checked;
-                ValidateForm();
-            };
-
-            chkFullCopy = new CheckBox() { Text = "חלץ את כל תוכן הקובץ הנבחר (ללא סינון לפי הרשימה)", Location = new Point(135, 150), Size = new Size(390, 24), Font = fontRegular, ForeColor = colorTextDark };
-            chkFullCopy.CheckedChanged += (s, e) =>
-            {
-                bool fullCopy = chkFullCopy.Checked;
-                txtSearchValue.Enabled = !fullCopy;
-                btnAdd.Enabled = !fullCopy;
-                btnRemove.Enabled = !fullCopy;
-                btnExtract.Text = fullCopy ? "העתק את כל התוכן ליצירת קובץ TXT" : "הפעל סריקה חכמה ויצירת קובץ TXT";
-                ValidateForm();
-            };
-
-            pnlSource.Controls.AddRange(new Control[] { lblSection1, lblFolder, txtFolderInput, btnScan, lblFile, cmbFiles, chkAllFiles, chkFullCopy });
-
-            // --- כרטיסייה ב': יעד שמירה ---
-            Panel pnlOutput = CreateCard(20, 265, 545, 85);
-            Label lblSection2 = new Label() { Text = "שלב ב': נתיב שמירת קובץ פלט (TXT)", Location = new Point(15, 12), Size = new Size(300, 20), Font = fontBold, ForeColor = colorPrimary };
-
-            Label lblOutputFolder = new Label() { Text = "נתיב שמירה:", Location = new Point(15, 48), Size = new Size(110, 20), Font = fontRegular, ForeColor = colorTextMuted, TextAlign = ContentAlignment.TopRight };
-            txtOutputFolderInput = new TextBox() { Location = new Point(135, 45), Size = new Size(265, 25), Font = fontRegular, BorderStyle = BorderStyle.FixedSingle };
-            txtOutputFolderInput.Text = Environment.GetFolderPath(Environment.SpecialFolder.Desktop);
-            txtOutputFolderInput.TextChanged += (s, e) => ValidateForm();
-
-            btnBrowseOutput = new ModernButton() { Text = "בחר תיקייה...", Location = new Point(415, 43), Size = new Size(110, 27), Font = fontBold, BackColor = colorPrimary, HoverColor = colorPrimaryHover, ForeColor = Color.White };
-            btnBrowseOutput.Click += BtnBrowseOutput_Click;
-
-            pnlOutput.Controls.AddRange(new Control[] { lblSection2, lblOutputFolder, txtOutputFolderInput, btnBrowseOutput });
-
-            // --- כרטיסייה ג': הזנת ערכים ---
-            Panel pnlAdd = CreateCard(20, 365, 545, 85);
-            Label lblSection3 = new Label() { Text = "שלב ג': הוספת מספר פלאפון, תז או שם לחיפוש", Location = new Point(15, 12), Size = new Size(320, 20), Font = fontBold, ForeColor = colorPrimary };
-
-            Label lblValue = new Label() { Text = "מספר / שם:", Location = new Point(15, 48), Size = new Size(110, 20), Font = fontRegular, ForeColor = colorTextMuted, TextAlign = ContentAlignment.TopRight };
-            txtSearchValue = new TextBox() { Location = new Point(135, 45), Size = new Size(265, 25), Font = fontRegular, BorderStyle = BorderStyle.FixedSingle };
-            txtSearchValue.KeyDown += (s, e) => { if (e.KeyCode == Keys.Enter) { BtnAdd_Click(s, e); e.SuppressKeyPress = true; } };
-
-            btnAdd = new ModernButton() { Text = "הוסף לרשימה", Location = new Point(415, 43), Size = new Size(110, 27), Font = fontBold, BackColor = colorPrimary, HoverColor = colorPrimaryHover, ForeColor = Color.White };
-            btnAdd.Click += BtnAdd_Click;
-
-            pnlAdd.Controls.AddRange(new Control[] { lblSection3, lblValue, txtSearchValue, btnAdd });
-
-            // --- רשימת דרישות, חיווי וקרדיט ---
-            Label lblList = new Label() { Text = "רשימת הערכים לחיפוש (מספרים ושמות):", Location = new Point(20, 465), Size = new Size(340, 20), Font = fontBold, ForeColor = colorTextDark };
-            lstRequests = new ListBox() { Location = new Point(20, 490), Size = new Size(545, 100), Font = fontRegular, BorderStyle = BorderStyle.FixedSingle, ItemHeight = 20 };
-
-            btnRemove = new ModernButton() { Text = "מחק מספר מסומן", Location = new Point(20, 600), Size = new Size(140, 28), Font = fontBold, BackColor = Color.White, HoverColor = colorDanger, ForeColor = colorDanger };
-            btnRemove.FlatAppearance.BorderColor = colorDanger;
-            btnRemove.FlatAppearance.BorderSize = 1;
-            btnRemove.FlatStyle = FlatStyle.Flat;
-            btnRemove.Click += BtnRemove_Click;
-
-            lblProgressText = new Label() { Text = "מוכן לעבודה.", Location = new Point(180, 604), Size = new Size(385, 20), Font = fontRegular, ForeColor = colorTextMuted };
-            prgStatus = new ProgressBar() { Location = new Point(20, 635), Size = new Size(545, 12), Style = ProgressBarStyle.Continuous };
-
-            // כפתור איפוס כללי - מנקה הכל וחוזר למסך ההתחלה
-            btnReset = new ModernButton() { Text = "איפוס", Location = new Point(20, 670), Size = new Size(120, 45), Font = fontBold, BackColor = Color.White, HoverColor = Color.FromArgb(241, 245, 249), ForeColor = colorTextMuted, BorderRadius = 12 };
-            btnReset.FlatAppearance.BorderColor = colorBorder;
-            btnReset.FlatAppearance.BorderSize = 1;
-            btnReset.FlatStyle = FlatStyle.Flat;
-            btnReset.Click += BtnReset_Click;
-
-            btnExtract = new ModernButton() { Text = "הפעל סריקה חכמה ויצירת קובץ TXT", Location = new Point(155, 670), Size = new Size(390, 45), Font = fontBold, BackColor = colorSuccess, HoverColor = colorSuccessHover, ForeColor = Color.White, BorderRadius = 12 };
-            btnExtract.Click += BtnExtract_Click;
-
-            // --- כרטיסייה נוספת: פיצול קובץ גדול לשני חלקים ---
-            // שימושי כשקובץ הפלט (למשל אחרי "חלץ את כל תוכן הקובץ") גדול מדי לפתיחה בעורך רגיל כמו Notepad++
-            Panel pnlSplit = CreateCard(20, 725, 545, 115);
-            Label lblSplitTitle = new Label() { Text = "כלי נוסף: פיצול קובץ כבד לשני חלקים (לפתיחה נוחה בעורך טקסט רגיל)", Location = new Point(15, 10), Size = new Size(515, 20), Font = fontBold, ForeColor = colorPrimary };
-
-            Label lblSplitFile = new Label() { Text = "קובץ לפיצול:", Location = new Point(15, 45), Size = new Size(110, 20), Font = fontRegular, ForeColor = colorTextMuted, TextAlign = ContentAlignment.TopRight };
-            txtSplitFile = new TextBox() { Location = new Point(135, 42), Size = new Size(265, 25), Font = fontRegular, BorderStyle = BorderStyle.FixedSingle, ReadOnly = true };
-
-            btnBrowseSplitFile = new ModernButton() { Text = "בחר קובץ...", Location = new Point(415, 40), Size = new Size(110, 27), Font = fontBold, BackColor = colorPrimary, HoverColor = colorPrimaryHover, ForeColor = Color.White };
-            btnBrowseSplitFile.Click += BtnBrowseSplitFile_Click;
-
-            btnSplitFile = new ModernButton() { Text = "פצל לשני קבצים (נשמר בנתיב השמירה משלב ב')", Location = new Point(15, 78), Size = new Size(510, 28), Font = fontBold, BackColor = colorPrimary, HoverColor = colorPrimaryHover, ForeColor = Color.White, BorderRadius = 8 };
-            btnSplitFile.Enabled = false;
-            btnSplitFile.Click += BtnSplitFile_Click;
-
-            pnlSplit.Controls.AddRange(new Control[] { lblSplitTitle, lblSplitFile, txtSplitFile, btnBrowseSplitFile, btnSplitFile });
-
-            lblCredit = new Label() { Text = "© Created by NM Software | Studio Edition 2026", Location = new Point(20, 855), Size = new Size(545, 25), Font = fontCredit, ForeColor = colorTextMuted, TextAlign = ContentAlignment.MiddleCenter };
-
-            this.Controls.AddRange(new Control[] { pnlSource, pnlOutput, pnlAdd, lblList, lstRequests, btnRemove, lblProgressText, prgStatus, btnReset, btnExtract, pnlSplit, lblCredit });
-
-            progressTimer = new System.Windows.Forms.Timer();
-            progressTimer.Interval = 200;
-            progressTimer.Tick += ProgressTimer_Tick;
-
-            try { RefreshFiles(); } catch { }
-            ValidateForm();
-        }
-
-        private Panel CreateCard(int x, int y, int w, int h)
-        {
-            Panel p = new Panel() { Location = new Point(x, y), Size = new Size(w, h), BackColor = colorCard, BorderStyle = BorderStyle.None };
-            p.Paint += (s, e) =>
-            {
-                using (Pen pen = new Pen(colorBorder, 1))
-                {
-                    e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
-                    e.Graphics.DrawRectangle(pen, 0, 0, w - 1, h - 1);
-                }
-            };
-            return p;
-        }
-        private void BtnBrowseOutput_Click(object sender, EventArgs e)
-        {
-            using (FolderBrowserDialog fbd = new FolderBrowserDialog())
-            {
-                fbd.Description = "בחר את התיקייה שבה יישמר קובץ התוצאות";
-                if (fbd.ShowDialog() == DialogResult.OK)
-                {
-                    txtOutputFolderInput.Text = fbd.SelectedPath;
-                }
-            }
-        }
-
-        private void BtnScan_Click(object sender, EventArgs e)
-        {
-            RefreshFiles();
-        }
-
-        private void RefreshFiles()
+        public void Main()
         {
             try
             {
-                cmbFiles.Items.Clear();
-                targetFolder = txtFolderInput.Text.Trim();
+                // 1. שליפת נתיב שמירת הקובץ מתוך משתנה ה-SSIS
+                string filePath = Dts.Variables["User::HtmlFilePath"].Value.ToString();
 
-                // --- השורה החדשה שצריך להוסיף ---
-                if (string.IsNullOrEmpty(targetFolder)) return;
-                // ---------------------------------
-
-                if (Directory.Exists(targetFolder))
+                if (Directory.Exists(filePath))
                 {
-                    string[] files = Directory.GetFiles(targetFolder, "*");
-                    foreach (string file in files) cmbFiles.Items.Add(Path.GetFileName(file));
-                    if (cmbFiles.Items.Count > 0) cmbFiles.SelectedIndex = 0;
+                    filePath = Path.Combine(filePath, "JobDashboard.html");
                 }
-                else
+
+                // 2. שליפת מחרוזת החיבור המקורית מה-Connection Manager
+                string connectionString = Dts.Connections["PSRS.msdb"].ConnectionString;
+
+                // 3. שאילתה מתקדמת המחשבת ממוצע ריצות לכל ג'וב וזמני ריצה נוכחיים
+                string query = @"
+                    SELECT DISTINCT
+                        j.name AS JobName,
+                        CASE 
+                            WHEN ja.session_id IS NOT NULL AND ja.start_execution_date IS NOT NULL AND ja.stop_execution_date IS NULL THEN 'Running'
+                            WHEN jh.run_status = 0 THEN 'Failed'
+                            WHEN jh.run_status = 1 THEN 'Succeeded'
+                            WHEN jh.run_status = 2 THEN 'Retry'
+                            WHEN jh.run_status = 3 THEN 'Canceled'
+                            ELSE 'Unknown'
+                        END AS LastStatus,
+                        msdb.dbo.agent_datetime(jh.run_date, jh.run_time) AS LastRunTime,
+                        CONVERT(VARCHAR(10), msdb.dbo.agent_datetime(jh.run_date, jh.run_time), 23) AS LastRunDateISO,
+                        STUFF(STUFF(RIGHT('000000' + CAST(jh.run_duration AS VARCHAR(6)), 6), 5, 0, ':'), 3, 0, ':') AS Duration,
+                        ja.start_execution_date AS CurrentRunStart,
+                        jh_avg.AvgDurationSeconds
+                    FROM msdb.dbo.sysjobs j
+                    LEFT JOIN (
+                        SELECT job_id, run_status, run_date, run_time, run_duration,
+                               ROW_NUMBER() OVER (PARTITION BY job_id ORDER BY run_date DESC, run_time DESC) AS RowNum
+                        FROM msdb.dbo.sysjobhistory
+                        WHERE step_id = 0
+                    ) jh ON j.job_id = jh.job_id AND jh.RowNum = 1
+                    LEFT JOIN (
+                        SELECT job_id, 
+                               AVG((run_duration/10000)*3600 + ((run_duration%10000)/100)*60 + (run_duration%100)) AS AvgDurationSeconds
+                        FROM msdb.dbo.sysjobhistory
+                        WHERE step_id = 0 AND run_status = 1
+                        GROUP BY job_id
+                    ) jh_avg ON j.job_id = jh_avg.job_id
+                    LEFT JOIN msdb.dbo.sysjobactivity ja ON j.job_id = ja.job_id
+                        AND ja.session_id = (SELECT MAX(session_id) FROM msdb.dbo.syssessions)
+                        AND ja.start_execution_date IS NOT NULL AND ja.stop_execution_date IS NULL
+                    WHERE j.enabled = 1
+                      AND (jh.run_date IS NULL OR msdb.dbo.agent_datetime(jh.run_date, jh.run_time) >= DATEADD(day, -7, GETDATE()))
+                    ORDER BY j.name;";
+
+                DataTable dt = new DataTable();
+                using (OleDbConnection conn = new OleDbConnection(connectionString))
                 {
-                    MessageBox.Show("נתיב תיקיית המקור שהזנת אינו קיים בדיסק!", "נתיב שגוי", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                }
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show("שגיאה בסריקת התיקייה:\n" + ex.Message, "שגיאה", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
-            ValidateForm();
-        }
-
-        // אירוע הוספת מספר פלאפון או שם לרשימת החיפוש
-        // התוכנה מזהה אוטומטית: אם הוזנו רק ספרות (וסימנים כמו מקף/רווח/פלוס) - זה מטופל כמספר פלאפון
-        // אם הוזנו אותיות (עברית או אנגלית) - זה מטופל כשם, ונשמר בדיוק כפי שהוקלד
-        private void BtnAdd_Click(object sender, EventArgs e)
-        {
-            string rawVal = txtSearchValue.Text.Trim();
-
-            if (string.IsNullOrEmpty(rawVal))
-            {
-                MessageBox.Show("אנא הזן מספר פלאפון, תז או שם לחיפוש.", "שדה ריק", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                return;
-            }
-
-            // בדיקה האם הערך שהוזן הוא מספרי בלבד (מותר: ספרות, מקף, רווח, פלוס, סוגריים)
-            bool isNumeric = Regex.IsMatch(rawVal, @"^[\d\s\-\+\(\)]+$") && Regex.IsMatch(rawVal, @"\d");
-
-            string valueToStore;
-            string displayPrefix;
-
-            if (isNumeric)
-            {
-                string cleanVal = Regex.Replace(rawVal, @"[^\d]", "");
-                if (string.IsNullOrEmpty(cleanVal))
-                {
-                    MessageBox.Show("אנא הזן מספר פלאפון תקין לחיפוש (המכיל ספרות).", "שדה לא תקין", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    return;
-                }
-                valueToStore = cleanVal;
-                displayPrefix = "נייד מבוקש";
-            }
-            else
-            {
-                valueToStore = rawVal;
-                displayPrefix = "שם מבוקש";
-            }
-
-            bool alreadyExists = searchValues.Exists(v => string.Equals(v, valueToStore, StringComparison.OrdinalIgnoreCase));
-            if (alreadyExists)
-            {
-                MessageBox.Show("הערך הזה כבר קיים ברשימת החיפוש שלך.", "ערך כפול", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                return;
-            }
-
-            searchValues.Add(valueToStore);
-            lstRequests.Items.Add($"  {displayPrefix}: {rawVal}");
-
-            txtSearchValue.Text = "";
-            txtSearchValue.Focus();
-            ValidateForm();
-        }
-
-        // אירוע מחיקת מספר מסומן מהרשימה
-        private void BtnRemove_Click(object sender, EventArgs e)
-        {
-            if (lstRequests.SelectedIndex != -1)
-            {
-                int index = lstRequests.SelectedIndex;
-                searchValues.RemoveAt(index);
-                lstRequests.Items.RemoveAt(index);
-                ValidateForm();
-            }
-        }
-
-        // אירוע איפוס כללי - מנקה את כל השדות וחוזר למסך ההתחלה
-        private void BtnReset_Click(object sender, EventArgs e)
-        {
-            DialogResult confirm = MessageBox.Show(
-                "האם אתה בטוח שברצונך לאפס את כל הנתונים ולחזור למסך ההתחלה?\nהפעולה תמחק את התיקייה שנבחרה, הקובץ שנבחר ואת רשימת המספרים.",
-                "אישור איפוס",
-                MessageBoxButtons.YesNo,
-                MessageBoxIcon.Question);
-
-            if (confirm != DialogResult.Yes) return;
-
-            // ניקוי שדה תיקיית המקור ורשימת הקבצים
-            txtFolderInput.Text = "";
-            cmbFiles.Items.Clear();
-            targetFolder = "";
-            chkAllFiles.Checked = false;
-            cmbFiles.Enabled = true;
-            chkFullCopy.Checked = false;
-            btnExtract.Text = "הפעל סריקה חכמה ויצירת קובץ TXT";
-
-            // איפוס תיקיית השמירה לברירת המחדל (שולחן העבודה)
-            txtOutputFolderInput.Text = Environment.GetFolderPath(Environment.SpecialFolder.Desktop);
-
-            // ניקוי שדה הזנת מספר ורשימת המספרים שנצברו
-            txtSearchValue.Text = "";
-            searchValues.Clear();
-            lstRequests.Items.Clear();
-
-            // איפוס פס ההתקדמות והודעת הסטטוס
-            prgStatus.Value = 0;
-            lblProgressText.Text = "מוכן לעבודה.";
-
-            ValidateForm();
-            txtFolderInput.Focus();
-        }
-
-        // בדיקה האם לאפשר את כפתור ההפעלה
-        private void ValidateForm()
-        {
-            bool hasOutput = !string.IsNullOrEmpty(txtOutputFolderInput.Text.Trim());
-            bool hasSearchValues = chkFullCopy.Checked || searchValues.Count > 0;
-
-            if (chkAllFiles.Checked)
-            {
-                bool folderHasFiles = !string.IsNullOrEmpty(targetFolder) && Directory.Exists(targetFolder) && Directory.GetFiles(targetFolder, "*").Length > 0;
-                btnExtract.Enabled = folderHasFiles && hasSearchValues && hasOutput;
-            }
-            else
-            {
-                btnExtract.Enabled = (cmbFiles.SelectedIndex != -1 && hasSearchValues && hasOutput);
-            }
-
-            btnExtract.Cursor = btnExtract.Enabled ? Cursors.Hand : Cursors.No;
-        }
-
-        // הפעלה/כיבוי של כל הכפתורים והשדות בזמן סריקה
-        private void SetControlsEnabled(bool enabled)
-        {
-            btnScan.Enabled = enabled;
-            btnBrowseOutput.Enabled = enabled;
-            btnAdd.Enabled = enabled && !chkFullCopy.Checked;
-            btnRemove.Enabled = enabled && !chkFullCopy.Checked;
-            btnReset.Enabled = enabled;
-            chkAllFiles.Enabled = enabled;
-            chkFullCopy.Enabled = enabled;
-            cmbFiles.Enabled = enabled && !chkAllFiles.Checked;
-            txtFolderInput.Enabled = enabled;
-            txtOutputFolderInput.Enabled = enabled;
-            txtSearchValue.Enabled = enabled && !chkFullCopy.Checked;
-            btnBrowseSplitFile.Enabled = enabled;
-            btnSplitFile.Enabled = enabled && File.Exists(txtSplitFile.Text.Trim());
-
-            if (enabled)
-            {
-                ValidateForm();
-            }
-            else
-            {
-                btnExtract.Enabled = false;
-                btnExtract.Cursor = Cursors.No;
-            }
-        }
-
-        // אירוע בחירת קובץ כבד לפיצול (דיאלוג בחירת קובץ רגיל)
-        private void BtnBrowseSplitFile_Click(object sender, EventArgs e)
-        {
-            using (OpenFileDialog ofd = new OpenFileDialog())
-            {
-                ofd.Title = "בחר את הקובץ הכבד שברצונך לפצל לשניים";
-                ofd.Filter = "קבצי טקסט (*.txt)|*.txt|כל הקבצים (*.*)|*.*";
-
-                if (ofd.ShowDialog() == DialogResult.OK)
-                {
-                    txtSplitFile.Text = ofd.FileName;
-                    btnSplitFile.Enabled = true;
-                }
-            }
-        }
-
-        // אירוע פיצול קובץ כבד לשני חלקים, לפי גודל בקירוב (כך שכל חלק ייפתח בקלות בעורך טקסט רגיל)
-        private void BtnSplitFile_Click(object sender, EventArgs e)
-        {
-            string sourcePath = txtSplitFile.Text.Trim();
-            if (string.IsNullOrEmpty(sourcePath) || !File.Exists(sourcePath))
-            {
-                MessageBox.Show("אנא בחר קובץ קיים לפיצול.", "לא נבחר קובץ", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                return;
-            }
-
-            string outputFolder = txtOutputFolderInput.Text.Trim();
-            if (!Directory.Exists(outputFolder))
-            {
-                MessageBox.Show("נתיב השמירה שהוגדר בשלב ב' לא קיים. אנא בחר תיקיית שמירה תקינה שם.", "שגיאה", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                return;
-            }
-
-            string baseName = Path.GetFileNameWithoutExtension(sourcePath);
-            string part1Path = Path.Combine(outputFolder, baseName + "_חלק1.txt");
-            string part2Path = Path.Combine(outputFolder, baseName + "_חלק2.txt");
-
-            SetControlsEnabled(false);
-            prgStatus.Value = 0;
-            lblProgressText.Text = "מתחיל לפצל את הקובץ...";
-
-            try
-            {
-                Encoding hebrewEncoding = Encoding.GetEncoding(1255);
-                long totalSize = new FileInfo(sourcePath).Length;
-                long halfSize = totalSize / 2;
-                long bytesWrittenPart1 = 0;
-                long bytesProcessed = 0;
-                bool writingPart1 = true;
-                int updateCounter = 0;
-
-                using (var reader = new StreamReader(sourcePath, hebrewEncoding))
-                using (var writer1 = new StreamWriter(part1Path, false, hebrewEncoding))
-                using (var writer2 = new StreamWriter(part2Path, false, hebrewEncoding))
-                {
-                    string line;
-                    while ((line = reader.ReadLine()) != null)
+                    using (OleDbCommand cmd = new OleDbCommand(query, conn))
                     {
-                        long lineBytes = hebrewEncoding.GetByteCount(line) + 2;
-                        bytesProcessed += lineBytes;
-                        updateCounter++;
+                        cmd.CommandTimeout = 20;
+                        using (OleDbDataAdapter da = new OleDbDataAdapter(cmd)) { da.Fill(dt); }
+                    }
+                }
 
-                        if (writingPart1)
+                int totalJobs = dt.Rows.Count;
+                int succeededCount = 0; int failedCount = 0; int runningCount = 0;
+                foreach (DataRow row in dt.Rows)
+                {
+                    string stat = row["LastStatus"].ToString();
+                    if (stat == "Succeeded") succeededCount++;
+                    else if (stat == "Failed") failedCount++;
+                    else if (stat == "Running") runningCount++;
+                }
+
+                StringBuilder html = new StringBuilder();
+                // 4. מבנה האתר ועיצוב דאשבורד יוקרתי (Premium UI)
+                html.Append("<!DOCTYPE html><html lang='he' dir='rtl'><head><meta charset='utf-8'>");
+                html.Append("<title>SQL Agent Jobs Advanced Dashboard</title>");
+                html.Append("<style>");
+                html.Append(":root { --bg-main: #f8fafc; --panel-bg: #ffffff; --text-primary: #0f172a; --text-secondary: #475569; --border-color: #e2e8f0; --accent-blue: #2563eb; --accent-success: #10b981; --accent-failed: #ef4444; --accent-running: #f59e0b; }");
+                html.Append("body { font-family: 'Segoe UI', system-ui, sans-serif; background-color: var(--bg-main); margin: 0; padding: 30px; color: var(--text-primary); }");
+                html.Append(".container { max-width: 1400px; margin: 0 auto; }");
+                html.Append(".header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 1px solid var(--border-color); }");
+                html.Append(".header h2 { margin: 0; font-size: 26px; font-weight: 700; color: #1e293b; }");
+
+                // סרגל כלים (חיפוש ותאריכים)
+                html.Append(".toolbar { display: flex; gap: 15px; background: var(--panel-bg); padding: 15px 25px; border-radius: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.03); margin-bottom: 30px; align-items: center; flex-wrap: wrap; border: 1px solid var(--border-color); }");
+                html.Append(".search-box { position: relative; flex: 1; min-width: 250px; }");
+                html.Append(".search-box input { width: 100%; padding: 10px 15px; border: 1px solid var(--border-color); border-radius: 10px; font-size: 14px; outline: none; transition: all 0.2s; box-sizing: border-box; }");
+                html.Append(".search-box input:focus { border-color: var(--accent-blue); box-shadow: 0 0 0 3px rgba(37,99,235,0.15); }");
+                html.Append(".date-box { display: flex; align-items: center; gap: 10px; color: var(--text-secondary); font-size: 14px; }");
+                html.Append(".date-box input { padding: 9px 12px; border: 1px solid var(--border-color); border-radius: 10px; font-size: 14px; outline: none; background: #fff; cursor: pointer; }");
+                html.Append(".btn-today { padding: 9px 15px; background: #f1f5f9; border: 1px solid var(--border-color); border-radius: 10px; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.2s; color: var(--text-secondary); }");
+                html.Append(".btn-today:hover { background: #e2e8f0; color: var(--text-primary); }");
+
+                // כרטיסי סיכום עליונים
+                html.Append(".summary-container { display: flex; gap: 20px; margin-bottom: 35px; flex-wrap: wrap; }");
+                html.Append(".summary-card { background: var(--panel-bg); padding: 22px; border-radius: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.03); flex: 1; min-width: 160px; text-align: center; cursor: pointer; transition: all 0.2s; border: 1px solid var(--border-color); border-bottom: 5px solid #cbd5e1; }");
+                html.Append(".summary-card:hover { transform: translateY(-4px); box-shadow: 0 8px 16px rgba(0,0,0,0.06); }");
+                html.Append(".summary-card.all { border-bottom-color: var(--accent-blue); }");
+                html.Append(".summary-card.success { border-bottom-color: var(--accent-success); }");
+                html.Append(".summary-card.failed { border-bottom-color: var(--accent-failed); }");
+                html.Append(".summary-card.running { border-bottom-color: var(--accent-running); }");
+                html.Append(".summary-title { font-size: 14px; font-weight: 600; color: var(--text-secondary); }");
+                html.Append(".summary-num { font-size: 32px; font-weight: 700; margin-top: 8px; color: var(--text-primary); }");
+
+                // גריד הכרטיסיות
+                html.Append(".jobs-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 25px; }");
+                html.Append(".job-card { background: var(--panel-bg); border-radius: 16px; padding: 24px; box-shadow: 0 4px 12px rgba(0,0,0,0.03); display: flex; flex-direction: column; justify-content: space-between; border: 1px solid var(--border-color); border-right: 6px solid #cbd5e1; transition: all 0.25s; position: relative; }");
+                html.Append(".job-card:hover { transform: translateY(-2px); box-shadow: 0 6px 18px rgba(0,0,0,0.05); }");
+                html.Append(".job-card.status-succeeded { border-right-color: var(--accent-success); }");
+                html.Append(".job-card.status-failed { border-right-color: var(--accent-failed); }");
+                html.Append(".job-card.status-running { border-right-color: var(--accent-running); animation: pulse 2s infinite; }");
+                html.Append(".job-name { font-size: 18px; font-weight: 700; color: var(--text-primary); margin-bottom: 12px; line-height: 1.4; word-break: break-word; }");
+                html.Append(".job-details { font-size: 14px; color: var(--text-secondary); display: flex; flex-direction: column; gap: 8px; }");
+
+                // עיצוב אזור ה-ETA והממוצעים
+                html.Append(".eta-box { margin-top: 10px; padding: 10px 14px; background: #fff7ed; border: 1px dashed #fed7aa; border-radius: 10px; color: #c2410c; font-size: 13px; font-weight: 600; display: flex; flex-direction: column; gap: 4px; }");
+                html.Append(".avg-box { font-size: 12px; color: #64748b; margin-top: 2px; }");
+
+                html.Append(".status-badge { display: inline-block; padding: 5px 12px; border-radius: 30px; font-size: 12px; font-weight: 700; margin-top: 20px; width: fit-content; text-align: center; }");
+                html.Append(".badge-succeeded { background: #e6f4ea; color: #137333; }");
+                html.Append(".badge-failed { background: #fce8e6; color: #c5221f; }");
+                html.Append(".badge-running { background: #fef7e0; color: #b06000; }");
+                html.Append("@keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.7; } 100% { opacity: 1; } }");
+                html.Append("</style>");
+
+                // מערכת הסינון המשולבת ב-JavaScript
+                html.Append("<script>");
+                html.Append("let currentFilterStatus = 'all';");
+                html.Append("function applyFilters() {");
+                html.Append("  let searchValue = document.getElementById('jobSearch').value.toLowerCase();");
+                html.Append("  let dateValue = document.getElementById('datePicker').value;");
+                html.Append("  let cards = document.getElementsByClassName('job-card');");
+                html.Append("  for(let card of cards) {");
+                html.Append("    let name = card.getAttribute('data-name').toLowerCase();");
+                html.Append("    let status = card.getAttribute('data-status').toLowerCase();");
+                html.Append("    let date = card.getAttribute('data-date');");
+                html.Append("    let matchSearch = name.includes(searchValue);");
+                html.Append("    let matchStatus = (currentFilterStatus === 'all' || status === currentFilterStatus.toLowerCase());");
+                html.Append("    let matchDate = (!dateValue || date === dateValue);");
+                html.Append("    if(matchSearch && matchStatus && matchDate) { card.style.display = 'flex'; } else { card.style.display = 'none'; }");
+                html.Append("  }");
+                html.Append("}");
+                html.Append("function filterStatus(status) { currentFilterStatus = status; applyFilters(); }");
+                html.Append("function resetDate() { document.getElementById('datePicker').value = ''; applyFilters(); }");
+                html.Append("</script>");
+
+                html.Append("</head><body>");
+                html.Append("<div class='container'>");
+                html.Append("<div class='header'><h2>🖥️ מרכז ניטור מתקדם - SQL Agent Dashboard</h2></div>");
+                // יצירת סרגל הכלים העליון (חיפוש עם Autocomplete ותאריכים)
+                html.Append("<div class='toolbar'>");
+                html.Append("  <div class='search-box'>");
+                html.Append("    <input type='text' id='jobSearch' placeholder='חפש ג`וב (השלמה אוטומטית)...' oninput='applyFilters()' list='jobList'>");
+                html.Append("    <datalist id='jobList'>");
+
+                foreach (DataRow row in dt.Rows)
+                {
+                    html.Append($"<option value='{row["JobName"].ToString().Replace("'", "\\'")}' />");
+                }
+
+                html.Append("    </datalist>");
+                html.Append("  </div>");
+                html.Append("  <div class='date-box'>");
+                html.Append("    <span>סנן לפי תאריך ריצה:</span>");
+                html.Append("    <input type='date' id='datePicker' onchange='applyFilters()'>");
+                html.Append("    <button class='btn-today' onclick='resetDate()'>הצג הכל</button>");
+                html.Append("  </div>");
+                html.Append("</div>");
+
+                // כרטיסי סיכום עליונים
+                html.Append("<div class='summary-container'>");
+                html.Append($"  <div class='summary-card all' onclick=\"filterStatus('all')\"><div class='summary-title'>כל המשימות</div><div class='summary-num'>{totalJobs}</div></div>");
+                html.Append($"  <div class='summary-card success' onclick=\"filterStatus('Succeeded')\"><div class='summary-title'>הסתיימו בהצלחה</div><div class='summary-num'>{succeededCount}</div></div>");
+                html.Append($"  <div class='summary-card failed' onclick=\"filterStatus('Failed')\"><div class='summary-title'>נכשלו</div><div class='summary-num'>{failedCount}</div></div>");
+                html.Append($"  <div class='summary-card running' onclick=\"filterStatus('Running')\"><div class='summary-title'>רצים כעת</div><div class='summary-num'>{runningCount}</div></div>");
+                html.Append("</div>");
+
+                html.Append("<div class='jobs-grid'>");
+                // 6. מעבר על הנתונים והזרקת כרטיסי המשימות המורחבים (חישובי ETA וממוצעים)
+                if (dt.Rows.Count > 0)
+                {
+                    foreach (DataRow row in dt.Rows)
+                    {
+                        string jobName = row["JobName"].ToString();
+                        string status = row["LastStatus"].ToString();
+                        string lastRun = row["LastRunTime"] != DBNull.Value ? Convert.ToDateTime(row["LastRunTime"]).ToString("dd/MM/yyyy HH:mm:ss") : "לא רץ מעולם";
+                        string runDateISO = row["LastRunDateISO"].ToString();
+                        string duration = row["Duration"].ToString();
+
+                        string cardClass = "status-" + status.ToLower();
+                        string badgeClass = "badge-" + status.ToLower();
+
+                        string statusHebrew = "לא ידוע";
+                        if (status == "Succeeded") statusHebrew = "הסתיים בהצלחה";
+                        else if (status == "Failed") statusHebrew = "נכשל";
+                        else if (status == "Running") statusHebrew = "רץ כעת...";
+                        else if (status == "Canceled") statusHebrew = "בוטל";
+
+                        // בניית ה-HTML הפנימי של הכרטיס
+                        html.Append($"<div class='job-card {cardClass}' data-name='{jobName.Replace("'", "\\'")}' data-status='{status}' data-date='{runDateISO}'>");
+                        html.Append($"  <div class='job-name'>{jobName}</div>");
+                        html.Append("  <div class='job-details'>");
+                        html.Append($"    <div><b>📅 ריצה אחרונה:</b> {lastRun}</div>");
+
+                        // חישוב ממוצע ו-ETA במידה והג'וב רץ כרגע
+                        if (status == "Running" && row["CurrentRunStart"] != DBNull.Value && row["AvgDurationSeconds"] != DBNull.Value)
                         {
-                            writer1.WriteLine(line);
-                            bytesWrittenPart1 += lineBytes;
-                            if (bytesWrittenPart1 >= halfSize)
-                            {
-                                writingPart1 = false;
-                            }
+                            DateTime startTime = Convert.ToDateTime(row["CurrentRunStart"]);
+                            double avgSeconds = Convert.ToDouble(row["AvgDurationSeconds"]);
+
+                            // חישוב זמן סיום משוער: זמן התחלה + ממוצע שניות
+                            DateTime estimatedEnd = startTime.AddSeconds(avgSeconds);
+
+                            // המרת הממוצע לפורמט HH:MM:SS קריא
+                            TimeSpan avgSpan = TimeSpan.FromSeconds(avgSeconds);
+                            string avgDurationStr = string.Format("{0:D2}:{1:D2}:{2:D2}", (int)avgSpan.TotalHours, avgSpan.Minutes, avgSpan.Seconds);
+
+                            html.Append($"    <div class='eta-box'>");
+                            html.Append($"      <div>⏳ <b>סיום משוער (ETA):</b> {estimatedEnd.ToString("HH:mm:ss")}</div>");
+                            html.Append($"      <div class='avg-box'>בהסתמך על ממוצע ריצות קודמות ({avgDurationStr})</div>");
+                            html.Append($"    </div>");
                         }
                         else
                         {
-                            writer2.WriteLine(line);
+                            html.Append($"    <div><b>⏱️ משך זמן ריצה:</b> {duration}</div>");
+
+                            // הצגת הממוצע ההיסטורי כנתון רקע קטן לג'ובים רגילים
+                            if (row["AvgDurationSeconds"] != DBNull.Value)
+                            {
+                                TimeSpan avgSpan = TimeSpan.FromSeconds(Convert.ToDouble(row["AvgDurationSeconds"]));
+                                string avgDurationStr = string.Format("{0:D2}:{1:D2}:{2:D2}", (int)avgSpan.TotalHours, avgSpan.Minutes, avgSpan.Seconds);
+                                html.Append($"    <div class='avg-box'>ממוצע היסטורי: {avgDurationStr}</div>");
+                            }
                         }
 
-                        if (updateCounter >= 5000)
-                        {
-                            updateCounter = 0;
-                            int percent = totalSize > 0 ? (int)((bytesProcessed * 100) / totalSize) : 100;
-                            if (percent > 100) percent = 100;
-                            prgStatus.Value = percent;
-                            lblProgressText.Text = $"מפצל את הקובץ... ({percent}%)";
-                            Application.DoEvents();
-                        }
+                        html.Append("  </div>");
+                        html.Append($"  <div class='status-badge {badgeClass}'>{statusHebrew}</div>");
+                        html.Append("</div>");
                     }
                 }
+                else
+                {
+                    html.Append("<div style='grid-column: 1/-1; text-align: center; color: var(--text-secondary); padding: 40px;'>לא נמצאו משימות פעילות ב-7 הימים האחרונים.</div>");
+                }
 
-                prgStatus.Value = 100;
-                lblProgressText.Text = "הפיצול הושלם בהצלחה!";
+                html.Append("</div></div></body></html>");
 
-                MessageBox.Show($"🎉 הקובץ פוצל בהצלחה לשני חלקים על ידי NM Software!\n\nחלק ראשון:\n{part1Path}\n\nחלק שני:\n{part2Path}\n\nכל חלק אמור להיפתח בקלות בעורך טקסט רגיל כמו Notepad++.", "הצלחה - NM Software", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                // 7. שמירת קובץ ה-HTML הסופי והיוקרתי בדסקטופ
+                File.WriteAllText(filePath, html.ToString(), Encoding.UTF8);
+
+                Dts.TaskResult = (int)ScriptResults.Success;
             }
             catch (Exception ex)
             {
-                MessageBox.Show("שגיאה בפיצול הקובץ:\n" + ex.Message, "שגיאה", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
-            finally
-            {
-                SetControlsEnabled(true);
+                // רישום שגיאה מפורטת ללוג הפנימי של ה-SSIS במקרה של תקלה
+                Dts.Events.FireError(0, "ScriptTaskStatus", "קריסת תהליך הדאשבורד: " + ex.Message, string.Empty, 0);
+                Dts.TaskResult = (int)ScriptResults.Failure;
             }
         }
 
-        // עדכון מסך ההתקדמות מדי 200 מילישניות בזמן סריקה מקבילה
-        private void ProgressTimer_Tick(object sender, EventArgs e)
+        #region ScriptResults declaration
+        enum ScriptResults
         {
-            long br = Interlocked.Read(ref bytesReadAllShared);
-            long total = totalBytesAll <= 0 ? 1 : totalBytesAll;
-            int percent = (int)((br * 100) / total);
-            if (percent > 100) percent = 100;
-
-            prgStatus.Value = percent;
-            lblProgressText.Text = $"סורק במקביל... ({percent}%) | נמצאו עד כה: {totalMatchCountShared}";
+            Success = 0,
+            Failure = 1
         }
-
-        // אירוע כפתור ההפעלה - מחליט אם להריץ על קובץ בודד או על כל התיקייה במקביל
-        private void BtnExtract_Click(object sender, EventArgs e)
-        {
-            if (chkAllFiles.Checked)
-            {
-                RunParallelExtraction();
-            }
-            else
-            {
-                RunSingleFileExtraction();
-            }
-        }
-
-        // סריקה של כל הקבצים בתיקייה במקביל, לתוך קובץ תוצאות אחד מאוחד
-        private void RunParallelExtraction()
-        {
-            string[] files;
-            try
-            {
-                files = Directory.GetFiles(targetFolder, "*");
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show("שגיאה בקריאת רשימת הקבצים בתיקייה:\n" + ex.Message, "שגיאה", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                return;
-            }
-
-            if (files.Length == 0)
-            {
-                MessageBox.Show("לא נמצאו קבצים בתיקייה שנבחרה.", "אין קבצים", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                return;
-            }
-
-            string outputFolder = txtOutputFolderInput.Text.Trim();
-            if (!Directory.Exists(outputFolder))
-            {
-                MessageBox.Show("נתיב השמירה שבחרת לא קיים במחשב!", "שגיאה", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                return;
-            }
-
-            string outputPath = Path.Combine(outputFolder, chkFullCopy.Checked ? "full_content_export.txt" : "search_results_notepad.txt");
-            Encoding hebrewEncoding = Encoding.GetEncoding(1255);
-            bool fullCopyMode = chkFullCopy.Checked;
-
-            // חישוב גודל כולל של כל הקבצים יחד - לצורך פס ההתקדמות
-            totalBytesAll = 0;
-            foreach (string f in files)
-            {
-                try { totalBytesAll += new FileInfo(f).Length; } catch { }
-            }
-            if (totalBytesAll <= 0) totalBytesAll = 1;
-
-            bytesReadAllShared = 0;
-            totalMatchCountShared = 0;
-
-            SetControlsEnabled(false);
-            prgStatus.Value = 0;
-            lblProgressText.Text = $"מתחיל סריקה מקבילה של {files.Length} קבצים...";
-            progressTimer.Start();
-
-            StreamWriter sharedWriter;
-            try
-            {
-                sharedWriter = new StreamWriter(outputPath, false, hebrewEncoding);
-            }
-            catch (Exception ex)
-            {
-                progressTimer.Stop();
-                SetControlsEnabled(true);
-                MessageBox.Show("לא ניתן ליצור את קובץ התוצאות:\n" + ex.Message, "שגיאה", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                return;
-            }
-
-            Task.Run(() =>
-            {
-                try
-                {
-                    Parallel.ForEach(files, file =>
-                    {
-                        try
-                        {
-                            string fileName = Path.GetFileName(file);
-                            using (var reader = new StreamReader(file, hebrewEncoding))
-                            {
-                                string line;
-                                while ((line = reader.ReadLine()) != null)
-                                {
-                                    long lineBytes = hebrewEncoding.GetByteCount(line) + 2;
-                                    Interlocked.Add(ref bytesReadAllShared, lineBytes);
-
-                                    if (string.IsNullOrWhiteSpace(line)) continue;
-
-                                    bool isMatch = fullCopyMode;
-                                    if (!fullCopyMode)
-                                    {
-                                        foreach (string val in searchValues)
-                                        {
-                                            if (line.IndexOf(val, StringComparison.OrdinalIgnoreCase) >= 0)
-                                            {
-                                                isMatch = true;
-                                                break;
-                                            }
-                                        }
-
-                                        if (!isMatch)
-                                        {
-                                            char[] cleanChars = new char[line.Length];
-                                            int charCount = 0;
-                                            for (int i = 0; i < line.Length; i++)
-                                            {
-                                                if (line[i] >= '0' && line[i] <= '9')
-                                                {
-                                                    cleanChars[charCount++] = line[i];
-                                                }
-                                            }
-                                            string cleanLine = new string(cleanChars, 0, charCount);
-
-                                            foreach (string val in searchValues)
-                                            {
-                                                if (cleanLine.Contains(val))
-                                                {
-                                                    isMatch = true;
-                                                    break;
-                                                }
-                                            }
-                                        }
-                                    }
-
-                                    if (isMatch)
-                                    {
-                                        lock (writeLock)
-                                        {
-                                            sharedWriter.WriteLine($"[{fileName}] {line}");
-                                        }
-                                        Interlocked.Increment(ref totalMatchCountShared);
-                                    }
-                                }
-                            }
-                        }
-                        catch (Exception exFile)
-                        {
-                            lock (writeLock)
-                            {
-                                sharedWriter.WriteLine($"[שגיאה בקריאת {Path.GetFileName(file)}: {exFile.Message}]");
-                            }
-                        }
-                    });
-                }
-                finally
-                {
-                    sharedWriter.Flush();
-                    sharedWriter.Close();
-                }
-
-                this.Invoke((Action)(() =>
-                {
-                    progressTimer.Stop();
-                    prgStatus.Value = 100;
-                    string doneWord = fullCopyMode ? "הועתקו" : "נמצאו";
-                    lblProgressText.Text = $"הסתיים בהצלחה! נסרקו {files.Length} קבצים, {doneWord} {totalMatchCountShared} שורות.";
-                    SetControlsEnabled(true);
-
-                    string bodyLine = fullCopyMode
-                        ? $"הועתק כל התוכן מ-{files.Length} קבצים ({totalMatchCountShared} שורות בסך הכל)."
-                        : $"נמצאו וחולצו {totalMatchCountShared} שורות מלאות (עם ציון שם הקובץ לכל שורה).";
-
-                    MessageBox.Show($"🎉 הפעולה הושלמה בהצלחה על ידי NM Software!\n\nנסרקו {files.Length} קבצים בתיקייה.\n{bodyLine}\nהקובץ החדש מחכה לך בנתיב המבוקש:\n{outputPath}", "הצלחה - NM Software", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                }));
-            });
-        }
-
-        // אירוע סריקת קובץ בודד וכתיבה לנתיב השמירה שנבחר ידנית במחשב
-        private void RunSingleFileExtraction()
-        {
-            try
-            {
-                if (cmbFiles.SelectedIndex == -1) return;
-
-                string selectedFileName = cmbFiles.SelectedItem.ToString();
-                string sourcePath = Path.Combine(targetFolder, selectedFileName);
-
-                if (!File.Exists(sourcePath))
-                {
-                    MessageBox.Show("קובץ המקור לא נמצא פיזית בדיסק!", "שגיאה", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                    return;
-                }
-
-                string outputFolder = txtOutputFolderInput.Text.Trim();
-                if (!Directory.Exists(outputFolder))
-                {
-                    MessageBox.Show("נתיב השמירה שבחרת לא קיים במחשב!", "שגיאה", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                    return;
-                }
-
-                string outputPath = Path.Combine(outputFolder, chkFullCopy.Checked ? "full_content_export.txt" : "search_results_notepad.txt");
-                bool fullCopyMode = chkFullCopy.Checked;
-                int matchCount = 0;
-
-                btnExtract.Enabled = false;
-                btnScan.Enabled = false;
-                btnBrowseOutput.Enabled = false;
-                btnAdd.Enabled = false;
-                btnRemove.Enabled = false;
-                btnReset.Enabled = false;
-
-                Encoding hebrewEncoding = Encoding.GetEncoding(1255);
-
-                long totalBytes = new FileInfo(sourcePath).Length;
-                long bytesRead = 0;
-
-                using (var reader = new StreamReader(sourcePath, hebrewEncoding))
-                using (var writer = new StreamWriter(outputPath, false, hebrewEncoding))
-                {
-                    string line;
-                    int lineNo = 0;
-                    int updateCounter = 0;
-
-                    while ((line = reader.ReadLine()) != null)
-                    {
-                        lineNo++;
-                        updateCounter++;
-
-                        bytesRead += hebrewEncoding.GetByteCount(line) + 2;
-
-                        if (string.IsNullOrWhiteSpace(line)) continue;
-
-                        bool isMatch = fullCopyMode;
-                        if (!fullCopyMode)
-                        {
-                            foreach (string val in searchValues)
-                            {
-                                if (line.IndexOf(val, StringComparison.OrdinalIgnoreCase) >= 0)
-                                {
-                                    isMatch = true;
-                                    break;
-                                }
-                            }
-
-                            if (!isMatch)
-                            {
-                                char[] cleanChars = new char[line.Length];
-                                int charCount = 0;
-                                for (int i = 0; i < line.Length; i++)
-                                {
-                                    if (line[i] >= '0' && line[i] <= '9')
-                                    {
-                                        cleanChars[charCount++] = line[i];
-                                    }
-                                }
-                                string cleanLine = new string(cleanChars, 0, charCount);
-
-                                foreach (string val in searchValues)
-                                {
-                                    if (cleanLine.Contains(val))
-                                    {
-                                        isMatch = true;
-                                        break;
-                                    }
-                                }
-                            }
-                        }
-
-                        if (isMatch)
-                        {
-                            writer.WriteLine(line);
-                            matchCount++;
-                        }
-
-                        if (updateCounter >= 5000)
-                        {
-                            updateCounter = 0;
-                            int progressPercent = (int)((bytesRead * 100) / totalBytes);
-                            if (progressPercent > 100) progressPercent = 100;
-
-                            prgStatus.Value = progressPercent;
-                            string liveWord = fullCopyMode ? "הועתקו" : "נמצאו";
-                            lblProgressText.Text = $"סורק שורה {lineNo:N0}... ({progressPercent}%) | {liveWord}: {matchCount}";
-
-                            Application.DoEvents();
-                        }
-                    }
-
-                    prgStatus.Value = 100;
-                    string finishedWord = fullCopyMode ? "הועתקו" : "חולצו";
-                    lblProgressText.Text = $"הסתיים בהצלחה! {finishedWord} {matchCount} שורות.";
-                }
-
-                string successBody = fullCopyMode
-                    ? $"הועתק כל תוכן הקובץ ({matchCount} שורות בסך הכל)."
-                    : $"נמצאו וחולצו {matchCount} שורות מלאות.";
-
-                MessageBox.Show($"🎉 הפעולה הושלמה בהצלחה על ידי NM Software!\n\n{successBody}\nהקובץ החדש מחכה לך בנתיב המבוקש:\n{outputPath}", "הצלחה - NM Software", MessageBoxButtons.OK, MessageBoxIcon.Information);
-
-                btnExtract.Enabled = true;
-                btnScan.Enabled = true;
-                btnBrowseOutput.Enabled = true;
-                btnAdd.Enabled = true;
-                btnRemove.Enabled = true;
-                btnReset.Enabled = true;
-                ValidateForm();
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show("שגיאה במהלך סריקת הקובץ:\n" + ex.Message, "שגיאה חמורה", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                btnExtract.Enabled = true;
-                btnScan.Enabled = true;
-                btnBrowseOutput.Enabled = true;
-                btnAdd.Enabled = true;
-                btnRemove.Enabled = true;
-                btnReset.Enabled = true;
-                ValidateForm();
-            }
-        }
+        #endregion
     }
 }
