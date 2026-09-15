@@ -173,6 +173,10 @@ namespace ST_ba614c8a423f4c51b533c611fcae2999
                 html.Append(".summary-card.success { border-bottom-color: var(--accent-success); }");
                 html.Append(".summary-card.failed { border-bottom-color: var(--accent-failed); }");
                 html.Append(".summary-card.running { border-bottom-color: var(--accent-running); }");
+                html.Append(".summary-card.active-filter { background: var(--bg-main); box-shadow: 0 0 0 2px var(--accent-blue) inset; }");
+                html.Append(".group-chip { transition: all 0.15s; }");
+                html.Append(".group-chip.active { background: var(--accent-blue); border-color: var(--accent-blue); color: #fff; }");
+                html.Append(".group-chip.active .del { color: #fff; }");
                 html.Append(".summary-title { font-size: 13px; font-weight: 600; color: var(--text-secondary); }");
                 html.Append(".summary-num { font-size: 30px; font-weight: 700; margin-top: 8px; color: var(--text-primary); }");
 
@@ -228,6 +232,7 @@ namespace ST_ba614c8a423f4c51b533c611fcae2999
                 html.Append("<script>");
                 html.Append("let currentFilterStatus = 'all';");
                 html.Append("let currentGroupFilter = null;");
+                html.Append("let activeGroupName = null;");
                 html.Append("let selectMode = false;");
                 html.Append("const STORAGE_KEY = 'sqlDashboardGroups_v1';");
                 html.Append("const THEME_KEY = 'sqlDashboardTheme_v1';");
@@ -246,8 +251,18 @@ namespace ST_ba614c8a423f4c51b533c611fcae2999
                 html.Append("    let matchGroup = (!currentGroupFilter || currentGroupFilter.includes(card.getAttribute('data-name')));");
                 html.Append("    card.style.display = (matchSearch && matchStatus && matchDate && matchGroup) ? 'flex' : 'none';");
                 html.Append("  }");
+                html.Append("  document.querySelectorAll('.summary-card').forEach(c => c.classList.remove('active-filter'));");
+                html.Append("  if (!currentGroupFilter) {");
+                html.Append("    let activeCard = document.querySelector('.summary-card[data-status=\"' + currentFilterStatus + '\"]');");
+                html.Append("    if (activeCard) activeCard.classList.add('active-filter');");
+                html.Append("  }");
+                html.Append("  document.querySelectorAll('.group-chip').forEach(c => c.classList.toggle('active', currentGroupFilter && c.getAttribute('data-gname') === activeGroupName));");
                 html.Append("}");
-                html.Append("function filterStatus(status) { currentFilterStatus = status; currentGroupFilter = null; applyFilters(); }");
+                html.Append("function filterStatus(status) {");
+                html.Append("  if (currentFilterStatus === status && !currentGroupFilter) { status = 'all'; }");
+                html.Append("  currentFilterStatus = status; currentGroupFilter = null; activeGroupName = null;");
+                html.Append("  applyFilters();");
+                html.Append("}");
                 html.Append("function resetDate() { document.getElementById('datePicker').value = ''; applyFilters(); }");
 
                 // מצב כהה
@@ -272,8 +287,8 @@ namespace ST_ba614c8a423f4c51b533c611fcae2999
                 html.Append("}");
 
                 // מצב בחירה + קבוצות
-                html.Append("function toggleSelectMode() {");
-                html.Append("  selectMode = !selectMode;");
+                html.Append("function toggleSelectMode(forceOff) {");
+                html.Append("  selectMode = (forceOff === true) ? false : !selectMode;");
                 html.Append("  document.querySelectorAll('.job-select-cb').forEach(cb => { cb.style.display = selectMode ? 'block' : 'none'; if (!selectMode) cb.checked = false; });");
                 html.Append("  document.getElementById('selectModeBtn').classList.toggle('active', selectMode);");
                 html.Append("  document.getElementById('selectionBar').style.display = selectMode ? 'flex' : 'none';");
@@ -288,6 +303,7 @@ namespace ST_ba614c8a423f4c51b533c611fcae2999
                 html.Append("  if (jobs.length === 0) { alert('נא לבחור לפחות ג\\'וב אחד'); return; }");
                 html.Append("  let groups = loadGroups(); groups[name] = jobs; saveGroups(groups);");
                 html.Append("  document.getElementById('newGroupName').value = '';");
+                html.Append("  toggleSelectMode(true);");
                 html.Append("  renderGroupsPanel();");
                 html.Append("}");
                 html.Append("function deleteGroup(name) { let groups = loadGroups(); delete groups[name]; saveGroups(groups); renderGroupsPanel(); }");
@@ -298,8 +314,16 @@ namespace ST_ba614c8a423f4c51b533c611fcae2999
                 html.Append("  if (statuses.every(s => s === 'Succeeded')) return 'succeeded';");
                 html.Append("  return 'mixed';");
                 html.Append("}");
-                html.Append("function filterByGroup(name) { let groups = loadGroups(); currentGroupFilter = groups[name] || []; currentFilterStatus = 'all'; applyFilters(); }");
-                html.Append("function clearGroupFilter() { currentGroupFilter = null; applyFilters(); }");
+                html.Append("function filterByGroup(name) {");
+                html.Append("  if (activeGroupName === name) { clearGroupFilter(); return; }");
+                html.Append("  let groups = loadGroups();");
+                html.Append("  currentGroupFilter = groups[name] || [];");
+                html.Append("  activeGroupName = name;");
+                html.Append("  currentFilterStatus = 'all';");
+                html.Append("  toggleSelectMode(true);");
+                html.Append("  applyFilters();");
+                html.Append("}");
+                html.Append("function clearGroupFilter() { currentGroupFilter = null; activeGroupName = null; applyFilters(); }");
                 html.Append("function renderGroupsPanel() {");
                 html.Append("  let groups = loadGroups();");
                 html.Append("  let names = Object.keys(groups);");
@@ -317,17 +341,18 @@ namespace ST_ba614c8a423f4c51b533c611fcae2999
                 html.Append("    let status = computeGroupStatus(groups[name]);");
                 html.Append("    let chip = document.createElement('div');");
                 html.Append("    chip.className = 'group-chip';");
+                html.Append("    chip.setAttribute('data-gname', name);");
+                html.Append("    if (name === activeGroupName) chip.classList.add('active');");
                 html.Append("    let dot = document.createElement('span');");
                 html.Append("    dot.className = 'dot';");
                 html.Append("    dot.style.background = colorMap[status] || '#94a3b8';");
                 html.Append("    let label = document.createElement('span');");
                 html.Append("    label.textContent = name + ' (' + groups[name].length + ')';");
-                html.Append("    label.style.cursor = 'pointer';");
-                html.Append("    label.addEventListener('click', () => filterByGroup(name));");
                 html.Append("    let del = document.createElement('span');");
                 html.Append("    del.className = 'del';");
                 html.Append("    del.textContent = '✕';");
                 html.Append("    del.addEventListener('click', (e) => { e.stopPropagation(); if (confirm(\"למחוק את הקבוצה '\" + name + \"'?\")) deleteGroup(name); });");
+                html.Append("    chip.addEventListener('click', () => filterByGroup(name));");
                 html.Append("    chip.appendChild(dot); chip.appendChild(label); chip.appendChild(del);");
                 html.Append("    list.appendChild(chip);");
                 html.Append("  });");
@@ -376,10 +401,10 @@ namespace ST_ba614c8a423f4c51b533c611fcae2999
 
                 // כרטיסי סיכום עליונים
                 html.Append("<div class='summary-container'>");
-                html.Append($"  <div class='summary-card all' onclick=\"filterStatus('all')\"><div class='summary-title'>כל המשימות</div><div class='summary-num'>{totalJobs}</div></div>");
-                html.Append($"  <div class='summary-card success' onclick=\"filterStatus('Succeeded')\"><div class='summary-title'>הסתיימו בהצלחה</div><div class='summary-num'>{succeededCount}</div></div>");
-                html.Append($"  <div class='summary-card failed' onclick=\"filterStatus('Failed')\"><div class='summary-title'>נכשלו</div><div class='summary-num'>{failedCount}</div></div>");
-                html.Append($"  <div class='summary-card running' onclick=\"filterStatus('Running')\"><div class='summary-title'>רצים כעת</div><div class='summary-num'>{runningCount}</div></div>");
+                html.Append($"  <div class='summary-card all' data-status='all' onclick=\"filterStatus('all')\"><div class='summary-title'>כל המשימות</div><div class='summary-num'>{totalJobs}</div></div>");
+                html.Append($"  <div class='summary-card success' data-status='Succeeded' onclick=\"filterStatus('Succeeded')\"><div class='summary-title'>הסתיימו בהצלחה</div><div class='summary-num'>{succeededCount}</div></div>");
+                html.Append($"  <div class='summary-card failed' data-status='Failed' onclick=\"filterStatus('Failed')\"><div class='summary-title'>נכשלו</div><div class='summary-num'>{failedCount}</div></div>");
+                html.Append($"  <div class='summary-card running' data-status='Running' onclick=\"filterStatus('Running')\"><div class='summary-title'>רצים כעת</div><div class='summary-num'>{runningCount}</div></div>");
                 html.Append("</div>");
 
                 html.Append("<div class='jobs-grid'>");
