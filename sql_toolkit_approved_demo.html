@@ -1,365 +1,425 @@
-<!DOCTYPE html>
-<html lang="he" dir="rtl">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
-  <title>SQL Agent Live Dashboard</title>
-  <style>
-    :root {
-      --bg:#f5f7fb; --panel:#fff; --text:#111827; --muted:#64748b; --border:#e2e8f0;
-      --blue:#2563eb; --green:#059669; --red:#dc2626; --amber:#d97706; --shadow:0 8px 30px rgba(15,23,42,.06);
+#region Help: One-time SSIS Live Dashboard Generator
+/*
+ * מה עושה הגרסה הזו?
+ * -------------------
+ * ה-SSIS רץ פעם אחת בלבד ומייצר JobDashboard_Live.hta.
+ * לאחר מכן קובץ ה-HTA עצמו מתחבר ישירות ל-msdb דרך ADO בכל פתיחה/רענון.
+ * אין צורך ב-SQL Agent Job נוסף, IIS או שירות שרץ ברקע.
+ *
+ * דרישות:
+ * 1. Connection Manager בשם PSRS.msdb (כמו בקוד הקיים).
+ * 2. משתנה SSIS בשם User::HtmlFilePath (תיקייה או נתיב קובץ).
+ * 3. מומלץ מאוד שה-Connection Manager ישתמש ב-Windows Authentication.
+ *    ה-HTA ירוץ תחת המשתמש שפתח אותו, ולכן אותו משתמש צריך הרשאת קריאה ל-msdb.
+ *
+ * פלט:
+ * - JobDashboard_Live.hta  -> הדאשבורד החי
+ * - Open_JobDashboard.cmd -> קיצור דרך לפתיחה
+ */
+#endregion
+
+using System;
+using System.IO;
+using System.Text;
+using Microsoft.SqlServer.Dts.Runtime;
+
+namespace ST_ba614c8a423f4c51b533c611fcae2999
+{
+    [Microsoft.SqlServer.Dts.Tasks.ScriptTask.SSISScriptTaskEntryPointAttribute]
+    public partial class ScriptMain : Microsoft.SqlServer.Dts.Tasks.ScriptTask.VSTARTScriptObjectModelBase
+    {
+        // מטעמי אבטחה לא מטמיעים סיסמת SQL בתוך קובץ HTA כברירת מחדל.
+        // אם הארגון שלכם מאשר זאת במפורש, אפשר לשנות ל-true.
+        private const bool ALLOW_EMBED_SQL_LOGIN = false;
+
+        public void Main()
+        {
+            try
+            {
+                string target = Dts.Variables["User::HtmlFilePath"].Value.ToString();
+                string connectionString = Dts.Connections["PSRS.msdb"].ConnectionString;
+
+                if (string.IsNullOrWhiteSpace(connectionString))
+                    throw new Exception("Connection Manager 'PSRS.msdb' החזיר Connection String ריק.");
+
+                bool usesWindowsAuth = UsesWindowsAuthentication(connectionString);
+                bool containsSqlPassword = ContainsSqlPassword(connectionString);
+
+                if (!usesWindowsAuth && containsSqlPassword && !ALLOW_EMBED_SQL_LOGIN)
+                {
+                    throw new Exception(
+                        "החיבור PSRS.msdb משתמש ב-SQL Login/Password. " +
+                        "כדי לא לחשוף סיסמה בתוך קובץ מקומי, יצירת Live Dashboard נעצרה. " +
+                        "מומלץ להשתמש ב-Windows Authentication. אם הארגון מאשר הטמעת SQL Login, " +
+                        "שנה בקוד ALLOW_EMBED_SQL_LOGIN ל-true.");
+                }
+
+                string outputDir;
+                string htaPath;
+
+                if (Directory.Exists(target))
+                {
+                    outputDir = target;
+                    htaPath = Path.Combine(outputDir, "JobDashboard_Live.hta");
+                }
+                else
+                {
+                    outputDir = Path.GetDirectoryName(target);
+                    if (string.IsNullOrWhiteSpace(outputDir))
+                        outputDir = Environment.CurrentDirectory;
+
+                    if (!Directory.Exists(outputDir))
+                        Directory.CreateDirectory(outputDir);
+
+                    htaPath = Path.Combine(outputDir, "JobDashboard_Live.hta");
+                }
+
+                string sql = BuildSql();
+                string hta = BuildHta(connectionString, sql, usesWindowsAuth);
+
+                File.WriteAllText(htaPath, hta, new UTF8Encoding(true));
+
+                string cmdPath = Path.Combine(outputDir, "Open_JobDashboard.cmd");
+                string cmd = "@echo off\r\n" +
+                             "start \"\" mshta.exe \"" + htaPath.Replace("\"", "\"\"") + "\"\r\n";
+                File.WriteAllText(cmdPath, cmd, Encoding.Default);
+
+                bool fireAgain = false;
+                Dts.Events.FireInformation(
+                    0,
+                    "Live SQL Agent Dashboard",
+                    "נוצר בהצלחה: " + htaPath + " | מעכשיו הנתונים נשלפים ישירות מ-SQL בכל רענון.",
+                    string.Empty,
+                    0,
+                    ref fireAgain);
+
+                Dts.TaskResult = (int)ScriptResults.Success;
+            }
+            catch (Exception ex)
+            {
+                Dts.Events.FireError(0, "Live SQL Agent Dashboard", ex.ToString(), string.Empty, 0);
+                Dts.TaskResult = (int)ScriptResults.Failure;
+            }
+        }
+
+        private static bool UsesWindowsAuthentication(string cs)
+        {
+            string s = (cs ?? string.Empty).Replace(" ", string.Empty).ToLowerInvariant();
+            return s.Contains("integratedsecurity=sspi") ||
+                   s.Contains("integratedsecurity=true") ||
+                   s.Contains("trusted_connection=yes") ||
+                   s.Contains("trusted_connection=true");
+        }
+
+        private static bool ContainsSqlPassword(string cs)
+        {
+            string s = (cs ?? string.Empty).ToLowerInvariant();
+            return s.Contains("password=") || s.Contains("pwd=");
+        }
+
+        private static string JsString(string value)
+        {
+            if (value == null) return "''";
+            return "'" + value
+                .Replace("\\", "\\\\")
+                .Replace("'", "\\'")
+                .Replace("\r", "\\r")
+                .Replace("\n", "\\n")
+                .Replace("</script", "<\\/script") + "'";
+        }
+
+        private static string BuildSql()
+        {
+            return @"
+SET NOCOUNT ON;
+
+DECLARE @TodayInt INT = CONVERT(INT, CONVERT(VARCHAR(8), GETDATE(), 112));
+
+;WITH LastOutcome AS
+(
+    SELECT
+        h.job_id,
+        h.instance_id,
+        h.run_status,
+        h.run_date,
+        h.run_time,
+        h.run_duration,
+        h.message,
+        ROW_NUMBER() OVER
+        (
+            PARTITION BY h.job_id
+            ORDER BY h.instance_id DESC
+        ) AS rn
+    FROM msdb.dbo.sysjobhistory h
+    WHERE h.step_id = 0
+),
+FailedToday AS
+(
+    SELECT
+        h.job_id,
+        COUNT(*) AS FailedTodayCount,
+        MAX(h.instance_id) AS LastFailedInstanceId
+    FROM msdb.dbo.sysjobhistory h
+    WHERE h.step_id = 0
+      AND h.run_status = 0
+      AND h.run_date = @TodayInt
+    GROUP BY h.job_id
+),
+AvgSuccess AS
+(
+    SELECT
+        h.job_id,
+        AVG(
+            (h.run_duration / 10000) * 3600 +
+            ((h.run_duration % 10000) / 100) * 60 +
+            (h.run_duration % 100)
+        ) AS AvgDurationSeconds
+    FROM msdb.dbo.sysjobhistory h
+    WHERE h.step_id = 0
+      AND h.run_status = 1
+    GROUP BY h.job_id
+)
+SELECT
+    j.name AS JobName,
+
+    CASE
+        WHEN ja.session_id IS NOT NULL
+         AND ja.start_execution_date IS NOT NULL
+         AND ja.stop_execution_date IS NULL THEN 'Running'
+        WHEN lo.run_status = 0 THEN 'Failed'
+        WHEN lo.run_status = 1 THEN 'Succeeded'
+        WHEN lo.run_status = 2 THEN 'Retry'
+        WHEN lo.run_status = 3 THEN 'Canceled'
+        ELSE 'Unknown'
+    END AS CurrentStatus,
+
+    ISNULL(ft.FailedTodayCount, 0) AS FailedTodayCount,
+
+    CASE
+        WHEN ft.LastFailedInstanceId IS NOT NULL
+         AND lo.instance_id > ft.LastFailedInstanceId
+         AND lo.run_status = 1 THEN 1
+        ELSE 0
+    END AS RecoveredAfterFailure,
+
+    CASE WHEN lo.instance_id IS NULL THEN ''
+         ELSE CONVERT(VARCHAR(19), msdb.dbo.agent_datetime(lo.run_date, lo.run_time), 126)
+    END AS LastRunIso,
+
+    CASE WHEN lo.instance_id IS NULL THEN ''
+         ELSE CONVERT(VARCHAR(19), msdb.dbo.agent_datetime(lo.run_date, lo.run_time), 120)
+    END AS LastRunDisplay,
+
+    CASE WHEN lo.instance_id IS NULL THEN ''
+         ELSE STUFF(STUFF(RIGHT('000000' + CAST(lo.run_duration AS VARCHAR(6)), 6), 5, 0, ':'), 3, 0, ':')
+    END AS LastDuration,
+
+    CASE WHEN ja.start_execution_date IS NULL THEN ''
+         ELSE CONVERT(VARCHAR(19), ja.start_execution_date, 126)
+    END AS CurrentRunStartIso,
+
+    av.AvgDurationSeconds,
+
+    CASE WHEN failOutcome.instance_id IS NULL THEN ''
+         ELSE CONVERT(VARCHAR(19), msdb.dbo.agent_datetime(failOutcome.run_date, failOutcome.run_time), 120)
+    END AS LastFailureTodayDisplay,
+
+    ISNULL(failedStep.step_name, '') AS FailedStepName,
+    ISNULL(NULLIF(failedStep.message, ''), ISNULL(failOutcome.message, '')) AS FailedMessage,
+
+    CONVERT(VARCHAR(19), GETDATE(), 120) AS DbUpdatedAt
+
+FROM msdb.dbo.sysjobs j
+
+LEFT JOIN LastOutcome lo
+    ON lo.job_id = j.job_id
+   AND lo.rn = 1
+
+LEFT JOIN FailedToday ft
+    ON ft.job_id = j.job_id
+
+LEFT JOIN AvgSuccess av
+    ON av.job_id = j.job_id
+
+LEFT JOIN msdb.dbo.sysjobactivity ja
+    ON ja.job_id = j.job_id
+   AND ja.session_id = (SELECT MAX(session_id) FROM msdb.dbo.syssessions)
+   AND ja.start_execution_date IS NOT NULL
+   AND ja.stop_execution_date IS NULL
+
+OUTER APPLY
+(
+    SELECT TOP 1
+        h.instance_id,
+        h.run_date,
+        h.run_time,
+        h.message
+    FROM msdb.dbo.sysjobhistory h
+    WHERE h.job_id = j.job_id
+      AND h.step_id = 0
+      AND h.instance_id = ft.LastFailedInstanceId
+) failOutcome
+
+OUTER APPLY
+(
+    SELECT TOP 1
+        hs.step_name,
+        hs.message
+    FROM msdb.dbo.sysjobhistory hs
+    WHERE hs.job_id = j.job_id
+      AND hs.step_id > 0
+      AND hs.run_status = 0
+      AND failOutcome.instance_id IS NOT NULL
+      AND hs.instance_id < failOutcome.instance_id
+      AND hs.instance_id > ISNULL
+      (
+          (
+              SELECT MAX(prev.instance_id)
+              FROM msdb.dbo.sysjobhistory prev
+              WHERE prev.job_id = j.job_id
+                AND prev.step_id = 0
+                AND prev.instance_id < failOutcome.instance_id
+          ),
+          0
+      )
+    ORDER BY hs.instance_id DESC
+) failedStep
+
+WHERE j.enabled = 1
+
+ORDER BY
+    CASE WHEN ISNULL(ft.FailedTodayCount, 0) > 0 THEN 0
+         WHEN ja.session_id IS NOT NULL AND ja.stop_execution_date IS NULL THEN 1
+         ELSE 2 END,
+    CASE WHEN lo.instance_id IS NULL THEN 1 ELSE 0 END,
+    lo.instance_id DESC,
+    j.name;
+";
+        }
+
+        private static string BuildHta(string connectionString, string sql, bool windowsAuth)
+        {
+            StringBuilder h = new StringBuilder();
+
+            h.AppendLine("<!DOCTYPE html>");
+            h.AppendLine("<html lang='he' dir='rtl'>");
+            h.AppendLine("<head>");
+            h.AppendLine("<meta charset='utf-8'>");
+            h.AppendLine("<meta http-equiv='X-UA-Compatible' content='IE=edge'>");
+            h.AppendLine("<title>SQL Agent Live Dashboard</title>");
+            h.AppendLine("<hta:application id='app' applicationname='SQL Agent Live Dashboard' border='thin' caption='yes' maximizebutton='yes' minimizebutton='yes' singleinstance='yes' scroll='yes' />");
+            h.AppendLine("<style>");
+            h.AppendLine("*{box-sizing:border-box} body{font-family:Segoe UI,Arial,sans-serif;background:#f4f7fb;color:#162033;margin:0;padding:22px} .wrap{max-width:1500px;margin:0 auto}");
+            h.AppendLine(".top{background:#fff;border:1px solid #dfe6ef;border-radius:16px;padding:18px 20px;margin-bottom:16px;box-shadow:0 4px 16px rgba(20,35,60,.05)}");
+            h.AppendLine(".toprow{display:flex;align-items:center;justify-content:space-between;gap:15px;flex-wrap:wrap}.title{font-size:24px;font-weight:800}.sub{font-size:12px;color:#6b778c;margin-top:5px}");
+            h.AppendLine(".live{display:flex;align-items:center;gap:8px;font-size:13px;color:#526174}.dot{width:9px;height:9px;border-radius:50%;background:#16a34a;display:inline-block}.dot.busy{background:#f59e0b}.dot.err{background:#dc2626}");
+            h.AppendLine("button,select,input{font-family:inherit}.btn{border:0;border-radius:10px;padding:10px 14px;font-weight:700;cursor:pointer}.btnPrimary{background:#2563eb;color:#fff}.btnGhost{background:#eef3f9;color:#334155;border:1px solid #dce4ee}.btn:hover{filter:brightness(.98)}");
+            h.AppendLine(".toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:16px}.search{flex:1;min-width:240px;padding:10px 12px;border-radius:10px;border:1px solid #d6deea;background:#fff;color:#172033}");
+            h.AppendLine(".cards{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:16px}.summary{background:#fff;border:1px solid #dfe6ef;border-radius:14px;padding:16px;cursor:pointer}.summary.active{outline:2px solid #2563eb}.sumLabel{font-size:12px;color:#6a7789;font-weight:700}.sumNum{font-size:30px;font-weight:800;margin-top:5px}.sumFail .sumNum{color:#dc2626}.sumRun .sumNum{color:#d97706}");
+            h.AppendLine(".statusline{display:flex;justify-content:space-between;align-items:center;gap:10px;margin:10px 2px 14px;color:#66758a;font-size:12px;flex-wrap:wrap}");
+            h.AppendLine(".grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:14px}.job{background:#fff;border:1px solid #dfe6ef;border-right:5px solid #cbd5e1;border-radius:15px;padding:17px;box-shadow:0 3px 12px rgba(20,35,60,.04)}.job.failToday{border-right-color:#dc2626}.job.running{border-right-color:#f59e0b}.job.succeeded{border-right-color:#16a34a}");
+            h.AppendLine(".name{font-size:16px;font-weight:800;word-break:break-word;margin-bottom:10px}.row{font-size:13px;color:#536174;margin:6px 0;line-height:1.45}.label{font-weight:700;color:#334155}.badges{display:flex;gap:6px;flex-wrap:wrap;margin-top:12px}.badge{font-size:11px;font-weight:800;border-radius:999px;padding:5px 9px}.bFail{background:#fee2e2;color:#991b1b}.bRun{background:#fef3c7;color:#92400e}.bOk{background:#dcfce7;color:#166534}.bNeutral{background:#eef2f7;color:#475569}");
+            h.AppendLine(".error{margin-top:10px;padding:10px;background:#fff1f2;border:1px solid #fecdd3;border-radius:10px;color:#881337;font-size:12px;white-space:pre-wrap;word-break:break-word}.step{font-weight:800;margin-bottom:5px}.empty{grid-column:1/-1;background:#fff;border:1px dashed #cbd5e1;border-radius:14px;padding:35px;text-align:center;color:#64748b}");
+            h.AppendLine(".errorbar{display:none;background:#fff1f2;border:1px solid #fecdd3;color:#9f1239;padding:12px 14px;border-radius:10px;margin-top:12px;font-size:12px;white-space:pre-wrap}.authNote{font-size:11px;color:#8090a5;margin-top:8px}");
+            h.AppendLine("body.dark{background:#0f172a;color:#e5edf7}.dark .top,.dark .summary,.dark .job,.dark .empty{background:#182235;border-color:#2b3a52}.dark .search{background:#111b2c;color:#fff;border-color:#33445f}.dark .sub,.dark .row,.dark .statusline,.dark .live{color:#9fb0c5}.dark .label,.dark .name{color:#e8eef7}.dark .btnGhost{background:#25334a;color:#e5edf7;border-color:#34445e}.dark .error{background:#3a151c;border-color:#6d2634;color:#fecdd3}");
+            h.AppendLine("@media(max-width:760px){body{padding:12px}.cards{grid-template-columns:1fr}.grid{grid-template-columns:1fr}.title{font-size:19px}}");
+            h.AppendLine("</style>");
+            h.AppendLine("</head>");
+            h.AppendLine("<body>");
+            h.AppendLine("<div class='wrap'>");
+            h.AppendLine("<div class='top'>");
+            h.AppendLine("<div class='toprow'><div><div class='title'>SQL Agent Live Dashboard</div><div class='sub'>נשלף ישירות מ-msdb בזמן אמת — ללא Agent Job נוסף</div></div><div class='live'><span id='liveDot' class='dot busy'></span><span id='updateText'>טוען נתונים...</span></div></div>");
+            h.AppendLine("<div class='toolbar'>");
+            h.AppendLine("<input id='search' class='search' type='text' placeholder=\"חפש Job...\" onkeyup='render()'>");
+            h.AppendLine("<button class='btn btnPrimary' onclick='loadData(true)'>רענן עכשיו</button>");
+            h.AppendLine("<select id='intervalSel' class='btn btnGhost' onchange='changeInterval()'><option value='30000'>כל 30 שניות</option><option value='60000' selected>כל 60 שניות</option><option value='120000'>כל 2 דקות</option><option value='0'>ללא רענון אוטומטי</option></select>");
+            h.AppendLine("<button class='btn btnGhost' onclick='toggleDark()'>מצב כהה/בהיר</button>");
+            h.AppendLine("</div>");
+            h.AppendLine("<div id='errorBar' class='errorbar'></div>");
+            h.AppendLine("<div class='authNote'>" + (windowsAuth ? "החיבור משתמש ב-Windows Authentication. ההרשאות הן של המשתמש שפתח את הדאשבורד." : "הדאשבורד משתמש בפרטי החיבור שהתקבלו מ-SSIS.") + "</div>");
+            h.AppendLine("</div>");
+
+            h.AppendLine("<div class='cards'>");
+            h.AppendLine("<div id='sumFailed' class='summary sumFail' onclick=\"setFilter('failedToday')\"><div class='sumLabel'>נכשלו היום</div><div id='nFailed' class='sumNum'>0</div></div>");
+            h.AppendLine("<div id='sumRunning' class='summary sumRun' onclick=\"setFilter('running')\"><div class='sumLabel'>רצים עכשיו</div><div id='nRunning' class='sumNum'>0</div></div>");
+            h.AppendLine("<div id='sumAll' class='summary' onclick=\"setFilter('all')\"><div class='sumLabel'>כל ה-Jobs</div><div id='nAll' class='sumNum'>0</div></div>");
+            h.AppendLine("</div>");
+
+            h.AppendLine("<div class='statusline'><span id='shownText'>מוצגים 0</span><span id='countdownText'></span></div>");
+            h.AppendLine("<div id='grid' class='grid'></div>");
+            h.AppendLine("</div>");
+
+            h.AppendLine("<script language='javascript'>");
+            h.AppendLine("var CONN = " + JsString(connectionString) + ";");
+            h.AppendLine("var SQL = " + JsString(sql) + ";");
+            h.AppendLine("var jobs = [];");
+            h.AppendLine("var currentFilter = 'failedToday';");
+            h.AppendLine("var refreshMs = 60000;");
+            h.AppendLine("var nextRefreshAt = 0;");
+            h.AppendLine("var loading = false;");
+            h.AppendLine("var timerId = null;");
+            h.AppendLine("var countdownId = null;");
+
+            h.AppendLine("function val(rs,name){try{var x=rs.Fields(name).Value;return (x===null||typeof x==='undefined')?'':String(x);}catch(e){return '';}}");
+            h.AppendLine("function num(rs,name){var x=parseInt(val(rs,name),10);return isNaN(x)?0:x;}");
+            h.AppendLine("function enc(s){s=(s===null||typeof s==='undefined')?'':String(s);return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\"/g,'&quot;').replace(/'/g,'&#39;');}");
+            h.AppendLine("function fmtDbTime(s){return s?enc(s):'';}");
+            h.AppendLine("function setBusy(b){var d=document.getElementById('liveDot'); d.className=b?'dot busy':'dot';}");
+            h.AppendLine("function showError(msg){var e=document.getElementById('errorBar');e.style.display='block';e.innerText=msg;document.getElementById('liveDot').className='dot err';}");
+            h.AppendLine("function clearError(){var e=document.getElementById('errorBar');e.style.display='none';e.innerText='';}");
+
+            h.AppendLine("function loadData(manual){");
+            h.AppendLine(" if(loading)return; loading=true; setBusy(true); clearError();");
+            h.AppendLine(" var started=new Date().getTime(); var conn=null; var rs=null;");
+            h.AppendLine(" try{");
+            h.AppendLine("   conn=new ActiveXObject('ADODB.Connection'); conn.CommandTimeout=20; conn.Open(CONN); rs=conn.Execute(SQL); var arr=[]; var dbUpdated='';");
+            h.AppendLine("   while(!rs.EOF){");
+            h.AppendLine("     var o={name:val(rs,'JobName'),status:val(rs,'CurrentStatus'),failedToday:num(rs,'FailedTodayCount'),recovered:num(rs,'RecoveredAfterFailure')===1,lastRunIso:val(rs,'LastRunIso'),lastRun:val(rs,'LastRunDisplay'),duration:val(rs,'LastDuration'),runStart:val(rs,'CurrentRunStartIso'),avg:num(rs,'AvgDurationSeconds'),failTime:val(rs,'LastFailureTodayDisplay'),failStep:val(rs,'FailedStepName'),failMsg:val(rs,'FailedMessage')};");
+            h.AppendLine("     dbUpdated=val(rs,'DbUpdatedAt')||dbUpdated; arr.push(o); rs.MoveNext();");
+            h.AppendLine("   }");
+            h.AppendLine("   jobs=arr; var took=new Date().getTime()-started; document.getElementById('updateText').innerHTML='עודכן: <b>'+fmtDbTime(dbUpdated)+'</b> &nbsp;|&nbsp; '+took+' ms'; setBusy(false); clearError();");
+            h.AppendLine("   chooseDefaultFilter(); render(); scheduleNext();");
+            h.AppendLine(" }catch(ex){showError('שגיאה בשליפת הנתונים מ-SQL:\\r\\n'+(ex.description||ex.message||ex));}");
+            h.AppendLine(" try{if(rs)rs.Close();}catch(e1){} try{if(conn)conn.Close();}catch(e2){} loading=false;");
+            h.AppendLine("}");
+
+            h.AppendLine("function chooseDefaultFilter(){var f=0,r=0;for(var i=0;i<jobs.length;i++){if(jobs[i].failedToday>0)f++;if(jobs[i].status==='Running')r++;}if(currentFilter==='failedToday'&&f===0){currentFilter=r>0?'running':'all';}}");
+            h.AppendLine("function setFilter(f){currentFilter=f;render();}");
+            h.AppendLine("function render(){");
+            h.AppendLine(" var q=document.getElementById('search').value.toLowerCase(); var nf=0,nr=0; for(var i=0;i<jobs.length;i++){if(jobs[i].failedToday>0)nf++;if(jobs[i].status==='Running')nr++;}");
+            h.AppendLine(" document.getElementById('nFailed').innerText=nf;document.getElementById('nRunning').innerText=nr;document.getElementById('nAll').innerText=jobs.length;");
+            h.AppendLine(" document.getElementById('sumFailed').className='summary sumFail'+(currentFilter==='failedToday'?' active':'');document.getElementById('sumRunning').className='summary sumRun'+(currentFilter==='running'?' active':'');document.getElementById('sumAll').className='summary'+(currentFilter==='all'?' active':'');");
+            h.AppendLine(" var a=[];for(var j=0;j<jobs.length;j++){var x=jobs[j];var ok=(currentFilter==='all'||(currentFilter==='failedToday'&&x.failedToday>0)||(currentFilter==='running'&&x.status==='Running'));if(ok&&(!q||x.name.toLowerCase().indexOf(q)>=0))a.push(x);}");
+            h.AppendLine(" a.sort(function(a,b){if((a.failedToday>0)!=(b.failedToday>0))return a.failedToday>0?-1:1;if((a.status==='Running')!=(b.status==='Running'))return a.status==='Running'?-1:1;if(a.lastRunIso>b.lastRunIso)return -1;if(a.lastRunIso<b.lastRunIso)return 1;return a.name.localeCompare(b.name);});");
+            h.AppendLine(" var html='';for(var k=0;k<a.length;k++)html+=cardHtml(a[k]);if(!html)html=\"<div class='empty'>אין Jobs שמתאימים לסינון הנוכחי.</div>\";document.getElementById('grid').innerHTML=html;document.getElementById('shownText').innerText='מוצגים '+a.length+' מתוך '+jobs.length;");
+            h.AppendLine("}");
+
+            h.AppendLine("function cardHtml(x){");
+            h.AppendLine(" var cls='job';if(x.failedToday>0)cls+=' failToday';else if(x.status==='Running')cls+=' running';else if(x.status==='Succeeded')cls+=' succeeded';");
+            h.AppendLine(" var s=\"<div class='\"+cls+\"'><div class='name'>\"+enc(x.name)+\"</div>\";");
+            h.AppendLine(" s+=\"<div class='row'><span class='label'>ריצה אחרונה:</span> \"+enc(x.lastRun||'לא רץ מעולם')+\"</div>\";");
+            h.AppendLine(" if(x.status==='Running')s+=\"<div class='row'><span class='label'>מצב:</span> רץ עכשיו</div>\";else s+=\"<div class='row'><span class='label'>משך:</span> \"+enc(x.duration||'-')+\"</div>\";");
+            h.AppendLine(" if(x.failedToday>0){s+=\"<div class='row'><span class='label'>כשל אחרון היום:</span> \"+enc(x.failTime)+\"</div>\";s+=\"<div class='row'><span class='label'>מספר כשלים היום:</span> \"+x.failedToday+\"</div>\";if(x.failMsg||x.failStep){s+=\"<div class='error'>\"+(x.failStep?\"<div class='step'>Step: \"+enc(x.failStep)+\"</div>\":'')+enc(x.failMsg)+\"</div>\";}}");
+            h.AppendLine(" s+=\"<div class='badges'>\";if(x.failedToday>0)s+=\"<span class='badge bFail'>נכשל היום</span>\";if(x.recovered)s+=\"<span class='badge bOk'>התאושש מאז</span>\";if(x.status==='Running')s+=\"<span class='badge bRun'>רץ עכשיו</span>\";else if(x.status==='Succeeded')s+=\"<span class='badge bOk'>סטטוס אחרון: הצליח</span>\";else if(x.status==='Failed')s+=\"<span class='badge bFail'>סטטוס אחרון: נכשל</span>\";else s+=\"<span class='badge bNeutral'>\"+enc(x.status)+\"</span>\";s+=\"</div></div>\";return s;");
+            h.AppendLine("}");
+
+            h.AppendLine("function changeInterval(){refreshMs=parseInt(document.getElementById('intervalSel').value,10)||0;scheduleNext();}");
+            h.AppendLine("function scheduleNext(){if(timerId)window.clearTimeout(timerId);nextRefreshAt=0;if(refreshMs>0){nextRefreshAt=new Date().getTime()+refreshMs;timerId=window.setTimeout(function(){try{if(document.hasFocus&&document.hasFocus()){loadData(false);}else{scheduleNext();}}catch(e){loadData(false);}},refreshMs);}updateCountdown();}");
+            h.AppendLine("function updateCountdown(){if(!countdownId)countdownId=window.setInterval(updateCountdown,1000);var el=document.getElementById('countdownText');if(!refreshMs||!nextRefreshAt){el.innerText='רענון אוטומטי כבוי';return;}var sec=Math.max(0,Math.ceil((nextRefreshAt-new Date().getTime())/1000));el.innerText='רענון הבא בעוד '+sec+' שניות';}");
+            h.AppendLine("function toggleDark(){document.body.className=document.body.className==='dark'?'':'dark';}");
+            h.AppendLine("window.onload=function(){try{window.resizeTo(1450,900);}catch(e){} loadData(false);};");
+            h.AppendLine("</script>");
+            h.AppendLine("</body></html>");
+
+            return h.ToString();
+        }
+
+        #region ScriptResults declaration
+        enum ScriptResults
+        {
+            Success = 0,
+            Failure = 1
+        }
+        #endregion
     }
-    body.dark { --bg:#0f172a; --panel:#172033; --text:#f8fafc; --muted:#94a3b8; --border:#334155; --shadow:0 10px 35px rgba(0,0,0,.22); }
-    * { box-sizing:border-box; }
-    body { margin:0; padding:26px; font-family:"Segoe UI",Arial,sans-serif; background:var(--bg); color:var(--text); }
-    button,input,select { font:inherit; }
-    .container { max-width:1450px; margin:auto; }
-    .topbar { display:flex; gap:16px; justify-content:space-between; align-items:flex-start; margin-bottom:18px; flex-wrap:wrap; }
-    h1 { margin:0 0 5px; font-size:26px; }
-    .subtitle { color:var(--muted); font-size:13px; }
-    .actions { display:flex; gap:9px; align-items:center; flex-wrap:wrap; }
-    .btn { border:1px solid var(--border); background:var(--panel); color:var(--text); border-radius:10px; padding:9px 13px; cursor:pointer; }
-    .btn:hover { border-color:#94a3b8; }
-    .btn.primary { background:var(--blue); color:white; border-color:var(--blue); font-weight:650; }
-    .btn:disabled { opacity:.55; cursor:not-allowed; }
-    .refresh-state { display:flex; align-items:center; gap:8px; padding:9px 13px; border:1px solid var(--border); background:var(--panel); border-radius:10px; font-size:13px; color:var(--muted); }
-    .dot-live { width:9px; height:9px; border-radius:50%; background:var(--green); box-shadow:0 0 0 4px rgba(5,150,105,.12); }
-    .dot-live.loading { background:var(--amber); box-shadow:0 0 0 4px rgba(217,119,6,.12); }
-    .dot-live.error { background:var(--red); box-shadow:0 0 0 4px rgba(220,38,38,.12); }
-    .error-banner { display:none; margin-bottom:16px; padding:12px 15px; border:1px solid #fecaca; background:#fef2f2; color:#991b1b; border-radius:12px; font-size:13px; }
-    body.dark .error-banner { background:#450a0a; color:#fecaca; border-color:#7f1d1d; }
-    .summary { display:grid; grid-template-columns:repeat(3,minmax(180px,1fr)); gap:14px; margin-bottom:16px; }
-    .sum-card { background:var(--panel); border:1px solid var(--border); border-right:5px solid #cbd5e1; border-radius:15px; padding:18px; cursor:pointer; box-shadow:var(--shadow); transition:.18s; }
-    .sum-card:hover { transform:translateY(-2px); }
-    .sum-card.active { box-shadow:0 0 0 2px var(--blue) inset,var(--shadow); }
-    .sum-card.failed { border-right-color:var(--red); }
-    .sum-card.running { border-right-color:var(--amber); }
-    .sum-card.all { border-right-color:var(--blue); }
-    .sum-title { font-size:13px; font-weight:650; color:var(--muted); }
-    .sum-num { font-size:31px; font-weight:750; margin:5px 0 2px; }
-    .sum-sub { font-size:12px; color:var(--muted); }
-    .toolbar { display:flex; gap:10px; align-items:center; flex-wrap:wrap; background:var(--panel); border:1px solid var(--border); padding:12px; border-radius:14px; margin-bottom:16px; }
-    .search { flex:1; min-width:240px; }
-    .search input { width:100%; padding:10px 12px; border:1px solid var(--border); border-radius:10px; background:var(--panel); color:var(--text); outline:none; }
-    .search input:focus { border-color:var(--blue); box-shadow:0 0 0 3px rgba(37,99,235,.12); }
-    .toolbar-meta { color:var(--muted); font-size:13px; }
-    .auto { display:flex; gap:7px; align-items:center; font-size:13px; color:var(--muted); }
-    .auto select { border:1px solid var(--border); background:var(--panel); color:var(--text); border-radius:8px; padding:6px 8px; }
-    .jobs { display:grid; grid-template-columns:repeat(auto-fill,minmax(330px,1fr)); gap:15px; }
-    .job { background:var(--panel); border:1px solid var(--border); border-right:6px solid #cbd5e1; border-radius:15px; padding:18px; box-shadow:var(--shadow); min-height:220px; display:flex; flex-direction:column; }
-    .job.failed-today { border-right-color:var(--red); }
-    .job.running { border-right-color:var(--amber); }
-    .job.succeeded:not(.failed-today) { border-right-color:var(--green); }
-    .job-head { display:flex; justify-content:space-between; gap:12px; align-items:flex-start; }
-    .job-name { font-size:17px; font-weight:750; word-break:break-word; }
-    .badge { padding:4px 9px; border-radius:999px; font-size:11px; font-weight:700; white-space:nowrap; background:#f1f5f9; color:#475569; }
-    .badge.failed { background:#fee2e2; color:#991b1b; }
-    .badge.running { background:#fef3c7; color:#92400e; }
-    .badge.success { background:#d1fae5; color:#065f46; }
-    body.dark .badge { background:#334155; color:#cbd5e1; }
-    body.dark .badge.failed { background:#450a0a; color:#fecaca; }
-    body.dark .badge.running { background:#451a03; color:#fde68a; }
-    body.dark .badge.success { background:#022c22; color:#a7f3d0; }
-    .details { display:flex; flex-direction:column; gap:7px; margin-top:14px; color:var(--muted); font-size:13px; }
-    .details b { color:var(--text); font-weight:650; }
-    .failure-box { margin-top:11px; padding:10px 11px; background:#fff7f7; border:1px solid #fecaca; border-radius:10px; color:#991b1b; font-size:12px; }
-    body.dark .failure-box { background:#300b0b; border-color:#7f1d1d; color:#fecaca; }
-    .recovered { margin-top:7px; color:var(--green); font-weight:650; }
-    .history { display:flex; gap:5px; margin-top:8px; direction:rtl; }
-    .h { width:9px; height:9px; border-radius:50%; background:#cbd5e1; }
-    .h.S { background:var(--green); } .h.F { background:var(--red); } .h.R { background:var(--amber); } .h.C { background:#94a3b8; }
-    details { margin-top:8px; }
-    details summary { cursor:pointer; font-weight:650; }
-    .error-text { margin-top:7px; padding:8px; border-radius:8px; background:rgba(220,38,38,.08); white-space:pre-wrap; word-break:break-word; }
-    .empty { grid-column:1/-1; text-align:center; padding:55px 20px; background:var(--panel); border:1px dashed var(--border); border-radius:15px; color:var(--muted); }
-    .loading-shell { grid-column:1/-1; text-align:center; padding:55px; color:var(--muted); }
-    @media(max-width:760px){ body{padding:12px}.summary{grid-template-columns:1fr}.jobs{grid-template-columns:1fr}h1{font-size:21px}.actions{width:100%}.refresh-state{flex:1} }
-  </style>
-</head>
-<body>
-<div class="container">
-  <div class="topbar">
-    <div>
-      <h1>SQL Agent Live Dashboard</h1>
-      <div class="subtitle">הנתונים נשלפים ישירות מ־msdb בכל פתיחה או רענון של הדף</div>
-    </div>
-    <div class="actions">
-      <div class="refresh-state" id="refreshState">
-        <span class="dot-live loading" id="liveDot"></span>
-        <span id="updatedLabel">טוען נתונים...</span>
-      </div>
-      <button class="btn primary" id="refreshBtn" onclick="refreshJobs(true)">↻ רענן עכשיו</button>
-      <button class="btn" onclick="toggleTheme()">◐ מצב כהה/בהיר</button>
-    </div>
-  </div>
-
-  <div class="error-banner" id="errorBanner"></div>
-
-  <div class="summary">
-    <div class="sum-card failed active" id="sumFailed" onclick="setFilter('failedToday')">
-      <div class="sum-title">🚨 Jobs שנכשלו היום</div>
-      <div class="sum-num" id="failedTodayJobs">–</div>
-      <div class="sum-sub" id="failedEventsToday">טוען...</div>
-    </div>
-    <div class="sum-card running" id="sumRunning" onclick="setFilter('running')">
-      <div class="sum-title">▶ רצים עכשיו</div>
-      <div class="sum-num" id="runningCount">–</div>
-      <div class="sum-sub">ריצות פעילות כרגע</div>
-    </div>
-    <div class="sum-card all" id="sumAll" onclick="setFilter('all')">
-      <div class="sum-title">כל ה־Jobs</div>
-      <div class="sum-num" id="totalJobs">–</div>
-      <div class="sum-sub" id="successCount">טוען...</div>
-    </div>
-  </div>
-
-  <div class="toolbar">
-    <div class="search"><input id="searchBox" type="text" placeholder="חפש Job..." oninput="renderJobs()" /></div>
-    <div class="toolbar-meta" id="visibleCount"></div>
-    <label class="auto"><input type="checkbox" id="autoRefresh" checked onchange="configureAutoRefresh()" /> רענון אוטומטי</label>
-    <div class="auto">כל
-      <select id="refreshSeconds" onchange="configureAutoRefresh()">
-        <option value="30">30 שניות</option>
-        <option value="60" selected>60 שניות</option>
-        <option value="120">2 דקות</option>
-      </select>
-      <span id="countdown"></span>
-    </div>
-  </div>
-
-  <div class="jobs" id="jobsContainer"><div class="loading-shell">טוען את הסטטוס העדכני מ־SQL Server...</div></div>
-</div>
-
-<script>
-  let allJobs = [];
-  let currentFilter = 'failedToday';
-  let refreshTimer = null;
-  let countdownTimer = null;
-  let nextRefreshAt = null;
-  let isRefreshing = false;
-  const THEME_KEY = 'jobDashboardLiveTheme_v1';
-
-  function toggleTheme() {
-    document.body.classList.toggle('dark');
-    localStorage.setItem(THEME_KEY, document.body.classList.contains('dark') ? 'dark' : 'light');
-  }
-
-  (function initTheme(){
-    if (localStorage.getItem(THEME_KEY) === 'dark') document.body.classList.add('dark');
-  })();
-
-  function setState(type, text) {
-    const dot = document.getElementById('liveDot');
-    dot.className = 'dot-live' + (type ? ' ' + type : '');
-    document.getElementById('updatedLabel').textContent = text;
-  }
-
-  function showError(message) {
-    const el = document.getElementById('errorBanner');
-    el.textContent = message;
-    el.style.display = 'block';
-  }
-
-  function clearError() {
-    document.getElementById('errorBanner').style.display = 'none';
-  }
-
-  async function refreshJobs(manual) {
-    if (isRefreshing) return;
-    isRefreshing = true;
-    const btn = document.getElementById('refreshBtn');
-    btn.disabled = true;
-    setState('loading', 'מעדכן עכשיו...');
-
-    try {
-      const response = await fetch('jobs.ashx?_=' + Date.now(), { cache: 'no-store', headers: { 'Accept': 'application/json' } });
-      let data;
-      try { data = await response.json(); }
-      catch (_) { throw new Error('השרת לא החזיר JSON תקין.'); }
-
-      if (!response.ok || !data.ok) {
-        throw new Error((data && (data.error || data.details)) || ('HTTP ' + response.status));
-      }
-
-      allJobs = Array.isArray(data.jobs) ? data.jobs : [];
-      clearError();
-      updateSummary(data.summary || {});
-
-      // בפעם הראשונה: אם אין תקלות היום, אל תשאיר מסך ריק — עבור לכל ה-Jobs.
-      if (currentFilter === 'failedToday' && Number((data.summary || {}).failedTodayJobs || 0) === 0 && !window.__initialFilterResolved) {
-        currentFilter = 'all';
-      }
-      window.__initialFilterResolved = true;
-
-      renderJobs();
-      setState('', 'עודכן: ' + data.updatedAt + ' · ' + data.queryDurationMs + 'ms');
-      scheduleNextRefresh();
-    } catch (err) {
-      setState('error', 'העדכון נכשל — מוצגים הנתונים האחרונים');
-      showError('שגיאת עדכון: ' + err.message);
-      scheduleNextRefresh();
-    } finally {
-      isRefreshing = false;
-      btn.disabled = false;
-    }
-  }
-
-  function updateSummary(s) {
-    document.getElementById('failedTodayJobs').textContent = s.failedTodayJobs ?? 0;
-    document.getElementById('failedEventsToday').textContent = (s.failedEventsToday ?? 0) + ' אירועי כשל היום';
-    document.getElementById('runningCount').textContent = s.runningCount ?? 0;
-    document.getElementById('totalJobs').textContent = s.totalJobs ?? 0;
-    document.getElementById('successCount').textContent = (s.succeededCount ?? 0) + ' עם סטטוס אחרון תקין';
-  }
-
-  function setFilter(filter) {
-    currentFilter = filter;
-    document.querySelectorAll('.sum-card').forEach(x => x.classList.remove('active'));
-    if (filter === 'failedToday') document.getElementById('sumFailed').classList.add('active');
-    if (filter === 'running') document.getElementById('sumRunning').classList.add('active');
-    if (filter === 'all') document.getElementById('sumAll').classList.add('active');
-    renderJobs();
-  }
-
-  function parseIso(s) {
-    if (!s) return 0;
-    const t = new Date(s).getTime();
-    return isNaN(t) ? 0 : t;
-  }
-
-  function renderJobs() {
-    const search = document.getElementById('searchBox').value.trim().toLowerCase();
-    let jobs = allJobs.filter(j => {
-      if (search && !String(j.jobName || '').toLowerCase().includes(search)) return false;
-      if (currentFilter === 'failedToday') return Number(j.failuresToday || 0) > 0;
-      if (currentFilter === 'running') return j.lastStatus === 'Running';
-      return true;
-    });
-
-    jobs.sort((a,b) => {
-      const af = Number(a.failuresToday || 0) > 0 ? 1 : 0;
-      const bf = Number(b.failuresToday || 0) > 0 ? 1 : 0;
-      if (af !== bf) return bf - af;
-      const ar = a.lastStatus === 'Running' ? 1 : 0;
-      const br = b.lastStatus === 'Running' ? 1 : 0;
-      if (ar !== br) return br - ar;
-      return parseIso(b.lastRunTimeIso) - parseIso(a.lastRunTimeIso) || String(a.jobName).localeCompare(String(b.jobName));
-    });
-
-    const container = document.getElementById('jobsContainer');
-    document.getElementById('visibleCount').textContent = 'מוצגים ' + jobs.length + ' מתוך ' + allJobs.length;
-
-    if (jobs.length === 0) {
-      container.innerHTML = '<div class="empty">' +
-        (currentFilter === 'failedToday' ? '✅ אין Jobs שנכשלו היום לפי הנתונים האחרונים.' : 'לא נמצאו Jobs שמתאימים לסינון.') +
-        '</div>';
-      return;
-    }
-
-    container.innerHTML = jobs.map(renderJobCard).join('');
-  }
-
-  function renderJobCard(j) {
-    const failedToday = Number(j.failuresToday || 0) > 0;
-    const running = j.lastStatus === 'Running';
-    let css = 'job ' + (failedToday ? 'failed-today ' : '') + (running ? 'running' : (j.lastStatus === 'Succeeded' ? 'succeeded' : ''));
-
-    let badgeClass = 'badge';
-    let badgeText = statusText(j.lastStatus);
-    if (running) badgeClass += ' running';
-    else if (j.lastStatus === 'Failed') badgeClass += ' failed';
-    else if (j.lastStatus === 'Succeeded') badgeClass += ' success';
-
-    let failureHtml = '';
-    if (failedToday) {
-      const recovered = j.lastStatus === 'Succeeded'
-        ? '<div class="recovered">✓ הריצה האחרונה הצליחה — הכשל של היום נשמר כאן למעקב</div>' : '';
-      const msg = j.lastFailureMessage || j.lastFailureSummaryMessage || 'לא התקבלה הודעת שגיאה מפורטת.';
-      failureHtml = '<div class="failure-box">' +
-        '<div><b>🚨 נכשל היום:</b> ' + escapeHtml(String(j.failuresToday)) + ' פעמים</div>' +
-        (j.lastFailureTime ? '<div><b>כשל אחרון:</b> ' + escapeHtml(j.lastFailureTime) + '</div>' : '') +
-        (j.lastFailureStepName ? '<div><b>Step:</b> ' + escapeHtml(j.lastFailureStepName) + '</div>' : '') +
-        recovered +
-        '<details><summary>פרטי שגיאה</summary><div class="error-text">' + escapeHtml(msg) + '</div></details>' +
-        '</div>';
-    }
-
-    let etaHtml = '';
-    if (running && j.currentRunStartIso && j.avgDurationSeconds != null) {
-      const start = new Date(j.currentRunStartIso).getTime();
-      const eta = new Date(start + Number(j.avgDurationSeconds) * 1000);
-      if (!isNaN(eta.getTime())) etaHtml = '<div><b>⏳ ETA משוער:</b> ' + pad(eta.getHours()) + ':' + pad(eta.getMinutes()) + ':' + pad(eta.getSeconds()) + '</div>';
-    }
-
-    return '<div class="' + css + '">' +
-      '<div class="job-head"><div class="job-name">' + escapeHtml(j.jobName) + '</div><span class="' + badgeClass + '">' + escapeHtml(badgeText) + '</span></div>' +
-      '<div class="details">' +
-        '<div><b>ריצה אחרונה:</b> ' + escapeHtml(j.lastRunTime || 'לא רץ מעולם') + '</div>' +
-        '<div><b>משך:</b> ' + escapeHtml(j.duration || '—') + '</div>' +
-        '<div><b>ריצות היום:</b> ' + escapeHtml(String(j.runsToday || 0)) + '</div>' +
-        etaHtml +
-        historyHtml(j.history5) +
-      '</div>' +
-      failureHtml +
-    '</div>';
-  }
-
-  function historyHtml(history) {
-    if (!history) return '';
-    const dots = history.split(',').reverse().map(x => '<span class="h ' + escapeAttr(x) + '" title="' + escapeAttr(historyText(x)) + '"></span>').join('');
-    return '<div><b>5 ריצות אחרונות:</b><div class="history">' + dots + '</div></div>';
-  }
-
-  function historyText(x) { return ({S:'הצלחה',F:'כשל',R:'Retry',C:'בוטל',U:'לא ידוע'})[x] || 'לא ידוע'; }
-  function statusText(s) { return ({Succeeded:'הצליח',Failed:'נכשל',Running:'רץ עכשיו',Retry:'Retry',Canceled:'בוטל',Unknown:'לא ידוע'})[s] || 'לא ידוע'; }
-  function pad(n) { return String(n).padStart(2,'0'); }
-
-  function escapeHtml(value) {
-    return String(value ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
-  }
-  function escapeAttr(value) { return escapeHtml(value); }
-
-  function configureAutoRefresh() {
-    clearTimeout(refreshTimer);
-    clearInterval(countdownTimer);
-    refreshTimer = null;
-    countdownTimer = null;
-    nextRefreshAt = null;
-    document.getElementById('countdown').textContent = '';
-    scheduleNextRefresh();
-  }
-
-  function scheduleNextRefresh() {
-    clearTimeout(refreshTimer);
-    clearInterval(countdownTimer);
-    if (!document.getElementById('autoRefresh').checked) return;
-
-    const seconds = Number(document.getElementById('refreshSeconds').value || 60);
-    nextRefreshAt = Date.now() + seconds * 1000;
-    updateCountdown();
-    countdownTimer = setInterval(updateCountdown, 1000);
-    refreshTimer = setTimeout(() => {
-      if (!document.hidden) refreshJobs(false);
-      else scheduleNextRefresh();
-    }, seconds * 1000);
-  }
-
-  function updateCountdown() {
-    if (!nextRefreshAt || !document.getElementById('autoRefresh').checked) {
-      document.getElementById('countdown').textContent = '';
-      return;
-    }
-    const left = Math.max(0, Math.ceil((nextRefreshAt - Date.now()) / 1000));
-    document.getElementById('countdown').textContent = '· בעוד ' + left + ' שנ׳';
-  }
-
-  document.addEventListener('visibilitychange', () => {
-    if (!document.hidden && document.getElementById('autoRefresh').checked) refreshJobs(false);
-  });
-
-  // כל F5 / פתיחת הדף מגיעה לכאן ולכן מפעילה שאילתה חדשה בפועל.
-  refreshJobs(false);
-</script>
-</body>
-</html>
+}
