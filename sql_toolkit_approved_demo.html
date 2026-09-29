@@ -1,1 +1,213 @@
-SP_ALTSUPPORTFAILEDQRYGROUP12HOUR
+CREATE OR REPLACE PROCEDURE "SP_ALTSUPPORTFAILEDQRYGROUP12HOUR" AS
+
+    MAIL_BODY  VARCHAR2(32000);
+    S_SUBJECT  VARCHAR2(500);
+    S_MAILTO   VARCHAR2(1500);
+    MESS       VARCHAR2(32000);
+    SP_NAME    VARCHAR2(500);
+
+BEGIN
+
+  /****************************************************************************
+  ** LPSQL.SP_ALTSUPPORTFAILEDQRYGROUP12HOUR                                **
+  ** ---------------------------------------                                **
+  ** Failed Query Group - Last 12 Hours                                     **
+  ****************************************************************************/
+
+  SELECT
+      '<html>' || CHR(10) || CHR(13) ||
+
+      '<style type="text/css">
+        .tg1 {
+            border-collapse:collapse;
+            border-color:#9ABAD9;
+            border-spacing:0
+        }
+
+        .tg1 td {
+            background-color:#EBF5FF;
+            border-color:#9ABAD9;
+            border-style:solid;
+            border-width:1px;
+            color:#444;
+            font-family:consolas;
+            font-size:14px;
+            padding:2px 2px
+        }
+
+        .tg1 th {
+            background-color:#409CFF;
+            border-color:#9ABAD9;
+            border-style:solid;
+            border-width:1px;
+            color:#fff;
+            font-family:consolas;
+            font-size:14px;
+            padding:2px 2px
+        }
+      </style>' ||
+
+      CHR(10) || CHR(13) ||
+
+      '<head>
+         <meta charset="utf-8">
+         <div dir="rtl">דוח שאילתות שנפלו ב-12 השעות האחרונות</div>
+       </head>
+
+       <BR>
+
+       <center>
+
+       <table class="tg1">
+
+       <tr>
+         <th>ProcessNo</th>
+         <th>Query_Group</th>
+         <th>Exec_No</th>
+         <th>UserName</th>
+         <th>QueryGroupName</th>
+         <th>DT</th>
+         <th>BaseStatus</th>
+         <th>FileName</th>
+         <th>RunStatus</th>
+         <th>Status</th>
+       </tr>' ||
+
+       CHR(10) || CHR(13) ||
+
+       LISTAGG(
+           '<tr><td>' || "ProcessNo"       ||
+           '</td><td>' || "Query_Group"    ||
+           '</td><td>' || "Exec_No"        ||
+           '</td><td>' || "UserName"       ||
+           '</td><td>' || "QueryGroupName" ||
+           '</td><td>' || "DT"             ||
+           '</td><td>' || "BaseStatus"     ||
+           '</td><td>' || "FileName"       ||
+           '</td><td>' || "RunStatus"      ||
+           '</td><td>' || "Status"         ||
+           '</td></tr>'
+       )
+       WITHIN GROUP (ORDER BY "ProcessNo", "DT") ||
+
+       '</table>
+        </center>
+        </html>'
+
+  INTO MAIL_BODY
+
+  FROM
+  (
+      SELECT
+
+          RY.GN_PROCESS_NO AS "ProcessNo",
+
+          RY.GN_QRY_GRP_NO AS "Query_Group",
+
+          RY.GN_PROC_EXEC_NO AS "Exec_No",
+
+          TRIM(UN.GN_USER_NAME) AS "UserName",
+
+          TRIM(QGN.GN_QRY_GRP_NAME) AS "QueryGroupName",
+
+          TO_CHAR(
+              RY.GN_TIME_STAMP,
+              'YYYY-MON-DD HH24:MI:SS'
+          ) AS "DT",
+
+          RY.GN_RUN_STATUS AS "BaseStatus",
+
+          CASE
+              WHEN TRIM(RY.GN_FILE_NAME) IS NULL
+                  THEN ' - '
+              ELSE
+                  TRIM(RY.GN_FILE_NAME)
+          END AS "FileName",
+
+          CASE
+              WHEN RY.GN_RUN_STATUS = 'SUC' THEN 'הצלחה'
+              WHEN RY.GN_RUN_STATUS = 'IJA' THEN 'דוח בביצוע'
+              WHEN RY.GN_RUN_STATUS = 'WJA' THEN 'דוח בהמתנה'
+              WHEN RY.GN_RUN_STATUS = 'NDM' THEN 'דוח ריק'
+              WHEN RY.GN_RUN_STATUS = 'ABN' THEN 'דוח נכשל'
+              WHEN RY.GN_RUN_STATUS = 'CAN' THEN 'דוח בוטל'
+              ELSE RY.GN_RUN_STATUS
+          END AS "RunStatus",
+
+          CASE
+              WHEN RY.GN_QRY_RC_MSG = 'ליימ חלשנ'
+                  THEN 'נשלח מייל'
+
+              WHEN RY.GN_QRY_RC_MSG = 'חוד קיר'
+                  THEN 'דוח ריק'
+
+              WHEN RY.GN_QRY_RC_MSG LIKE 'ORA%'
+                  THEN TRIM(RY.GN_QRY_RC_MSG)
+
+              ELSE
+                  RY.GN_QRY_RC_MSG
+          END AS "Status"
+
+      FROM
+          LPSQL.GN_RUN_QUERY RY
+
+          JOIN LPSQL.GN_QRY_GRP_NAME QGN
+              ON RY.GN_QRY_GRP_NO = QGN.GN_QRY_GRP_NO
+             AND QGN.LANGUAGE_CODE = 'HN'
+
+          JOIN LPSQL.GNUSRNAME UN
+              ON RY.GN_USER_CODE = UN.GN_USER_CODE
+             AND UN.LANGUAGE_CODE = 'HN'
+
+      WHERE
+          RY.GN_TIME_STAMP >= (SYSDATE - INTERVAL '12' HOUR)
+          AND RY.GN_RUN_STATUS IN ('ABN', 'CAN')
+
+      ORDER BY
+          RY.GN_TIME_STAMP
+  );
+
+
+  SELECT "TO"
+  INTO S_MAILTO
+  FROM LPSQL.ALT_SUPPORT_NOTIFICATION_PROFILE
+  WHERE ID = 61;
+
+
+  SELECT "SUBJECT"
+  INTO S_SUBJECT
+  FROM LPSQL.ALT_SUPPORT_NOTIFICATION_PROFILE
+  WHERE ID = 61;
+
+
+  SELECT "NP_NAME"
+  INTO SP_NAME
+  FROM LPSQL.ALT_SUPPORT_NOTIFICATION_PROFILE
+  WHERE ID = 61;
+
+
+  MESS :=
+      SP_NAME
+      || '<BR>'
+      || '<BR>'
+      || MAIL_BODY;
+
+
+  IF MAIL_BODY LIKE '%<tr><td>%' THEN
+
+      EXECUTE IMMEDIATE
+          'ALTER SESSION SET smtp_out_server = ''autodiscover.altshul.co.il''';
+
+
+      UTL_MAIL.SEND(
+          sender     => 'netanelma@altshul.co.il',
+          recipients => S_MAILTO,
+          subject    => S_SUBJECT,
+          message    => MESS,
+          mime_type  => 'text/html; charset=iso-8859-8'
+      );
+
+  END IF;
+
+END "SP_ALTSUPPORTFAILEDQRYGROUP12HOUR";
+/
