@@ -1,61 +1,110 @@
-דבר חשוב לדעת לפני שמתחילים
-
-כשמפעילים ג'וב מבחוץ, הפקודה חוזרת מיד, גם אם הג'וב עוד רץ. אם לא נחכה לו, החבילה תמשיך הלאה ותנסה לקרוא את FeesData.txt לפני שהוא נוצר. לכן נשתמש בקטע SQL שמפעיל את הג'וב ומחכה עד שהוא מסיים.
-
-בניית החבילה, שלב אחר שלב
-
-שלב 0: הכנות (פעם אחת)
-
-ב-Visual Studio: File ← New ← Project ← Integration Services Project.
-הכן קובץ אקסל ריק בשם Template.xlsx, עם שורת כותרות בלבד (אותן עמודות של FeesData). הוא ישמש כתבנית לקובץ החודשי.
-
-שלב 1: משתנה לשם הקובץ
-
-בתפריט SSIS ← Variables, צור משתנה בשם MonthFileName מסוג String.
-ב-Properties שלו, שים EvaluateAsExpression = True, ובתוך Expression הדבק:
-"Fees_" + RIGHT("0" + (DT_WSTR,2) MONTH(DATEADD("mm",-1,GETDATE())),2) + "_" + (DT_WSTR,4) YEAR(DATEADD("mm",-1,GETDATE())) + ".xlsx"
-
-זה נותן שם כמו Fees_09_2026.xlsx לפי החודש הקודם. אם אתה צריך את החודש הנוכחי, מחק את DATEADD("mm",-1, ואת הסוגר המתאים.
-
 שלב 2: קליטת הקובץ של איציק אל BanksCommissions.csv
 
-גרור קוביית Data Flow Task.
-בתוכה: Excel Source (הקובץ שקיבלת מאיציק), ואחריו Flat File Destination שמצביע על \\bdata\Bank Import\BanksCommissions.csv. הקובץ נדרס בכל הרצה.
-עמודה C תיקרא כטקסט, אז שלב "שינוי מספר לכללי" לא נחוץ.
+א. קוביית Data Flow
+
+בלשונית Control Flow, בצד שמאל יש SSIS Toolbox. אם הוא לא מופיע: View ← Toolbox.
+גרור את Data Flow Task לאמצע המסך.
+לחץ עליה פעמיים. תיפתח לשונית Data Flow.
+
+ב. קריאת האקסל של איציק (Excel Source)
+
+מה-Toolbox, גרור Excel Source (תחת Other Sources). לחץ עליו פעמיים.
+בחלון שנפתח, ליד Excel connection manager לחץ New...
+בחלון Excel Connection Manager:
+Excel file path: לחץ Browse ובחר את הקובץ של איציק.
+Excel version: השאר Microsoft Excel 2007-2010 (או החדש ביותר ברשימה).
+סמן V ב-First row has column names.
+לחץ OK.
+חזרה בחלון Excel Source Editor:
+Data access mode: Table or view.
+Name of the Excel sheet: בחר את הגיליון, בדרך כלל Sheet1$.
+לחץ בצד שמאל על Columns. ודא שמופיעות 4 העמודות. לחץ OK.
+
+ג. כתיבה ל-CSV (Flat File Destination)
+
+גרור Flat File Destination (תחת Other Destinations).
+לחץ על Excel Source, ותופיע ממנו חץ ירוק. גרור את הקצה שלו אל Flat File Destination.
+לחץ פעמיים על Flat File Destination, ובשורה Flat File connection manager לחץ New...
+בחלון Flat File Format בחר Delimited ולחץ OK.
+בחלון Flat File Connection Manager Editor, בלשונית General:
+File name: \\bdata\Bank Import\BanksCommissions.csv (אפשר להקליד ישירות).
+Code page: בחר 1255 (ANSI - Hebrew).
+Format: Delimited.
+Text qualifier: <none>.
+Header row delimiter: {CR}{LF}.
+סמן V ב-Column names in the first data row.
+עבור ללשונית Columns (בצד שמאל). ודא ש-Column delimiter הוא Comma {,}. לחץ OK.
+בחלון Flat File Destination Editor:
+סמן V ב-Overwrite the data in the file.
+לחץ Mappings בצד שמאל, וודא שכל 4 העמודות מחוברות. לחץ OK.
+
+בדיקה: פתח את BanksCommissions_backup.csv בפנקס רשימות. אם המפריד שלו הוא לא פסיק, או שהכותרות שונות, תגיד לי ונתאים.
+
+אם עמודה C מגיעה כמספר מוזר (למשל עם E+ באמצע או ריקה): בחלון Connection Managers שלמטה, לחץ על חיבור האקסל, ולחץ F4. ב-ConnectionString הוסף IMEX=1; בתוך המשפט שמתחיל ב-Extended Properties.
 
 שלב 3: הפעלת הג'וב והמתנה לסיומו
+חזור ללשונית Control Flow (למעלה).
+גרור Execute SQL Task מה-Toolbox.
+חבר חץ ירוק מקוביית ה-Data Flow אל הקובייה החדשה.
+לחץ עליה פעמיים:
+Name: Run Customers Fees.
+ConnectionType: OLE DB.
+Connection: לחץ על החץ ובחר <New connection...>, ובחלון שנפתח:
+Server name: שם שרת ה-SQL שלכם.
+Log on to the server: Windows Authentication.
+Select or enter a database name: BDATA.
+לחץ Test Connection, אחרי ההצלחה לחץ OK.
+SQLSourceType: Direct input.
+SQLStatement: לחץ על שלוש הנקודות והדבק את הקוד משלב 3 שנתתי קודם.
+בלשונית Result Set בצד שמאל, השאר None.
+לחץ OK.
 
-גרור קוביית Execute SQL Task, חבר ל-BDATA, והדבק (החלף את שם הג'וב אם הוא שונה):
-sql
-DECLARE @job sysname = N'Customers Fees';
-EXEC msdb.dbo.sp_start_job @job_name = @job;
-WAITFOR DELAY '00:00:05';
-WHILE EXISTS (
-    SELECT 1
-    FROM msdb.dbo.sysjobactivity ja
-    JOIN msdb.dbo.sysjobs j ON j.job_id = ja.job_id
-    WHERE j.name = @job
-      AND ja.start_execution_date IS NOT NULL
-      AND ja.stop_execution_date IS NULL
-      AND ja.session_id = (SELECT MAX(session_id) FROM msdb.dbo.syssessions)
-)
-    WAITFOR DELAY '00:00:05';
+לפני כן: ב-SSMS, ודא את שם הג'וב המדויק תחת SQL Server Agent ← Jobs. אם הוא שונה מ-Customers Fees, תקן אותו בשורה הראשונה של הקוד.
 
 שלב 4: יצירת קובץ האקסל החודשי
 
-File System Task: העתקה של Template.xlsx אל \\bdata\Bank Import\ExportedData\ בשם שמגיע מהמשתנה MonthFileName.
-Data Flow Task: Flat File Source על FeesData.txt עם Code page = 1255 ומפריד נקודה-פסיק, ואחריו Excel Destination על הקובץ שהועתק.
+א. העתקת התבנית (File System Task)
 
+ב-Control Flow, גרור File System Task וחבר אליה חץ ירוק מ-Execute SQL Task.
+לחץ פעמיים. הגדר:
+Operation: Copy File.
+IsSourcePathVariable: False.
+SourceConnection: בחר <New connection...>. בחלון File Connection Manager Editor, ב-Usage type בחר Existing file, בחר Browse את Template.xlsx, ולחץ OK.
+OverwriteDestination: True.
+IsDestinationPathVariable: True.
+DestinationVariable: בחר User::MonthFilePath.
+OK.
+
+ב. מילוי האקסל (Data Flow Task שני)
+
+גרור Data Flow Task נוספת וחבר אליה חץ ירוק מה-File System Task. פתח אותה בלחיצה כפולה.
+Flat File Source: גרור אותו. לחץ פעמיים, ובשורת החיבור לחץ New...
+בחלון Flat File Connection Manager Editor, בלשונית General:
+File name: \\bdata\Bank Import\ExportedData\FeesData.txt.
+Code page: 1255 (ANSI - Hebrew).
+Format: Delimited.
+סמן V ב-Column names in the first data row אם בשורה הראשונה בקובץ יש כותרות (תבדוק בפנקס רשימות).
+בלשונית Columns: Column delimiter: Semicolon {;}.
+OK.
+Data Conversion: גרור Data Conversion (תחת Transformations) וחבר אליה חץ ירוק מה-Flat File Source. לחץ פעמיים, סמן V ליד כל העמודות, ובשדה Data Type בחר לכל אחת Unicode string [DT_WSTR]. (אקסל לא מקבל טקסט עברי בלי ההמרה הזאת. אם תראה X אדום על ה-Excel Destination, זו הסיבה.)
+Excel Destination: גרור אותו וחבר אליו חץ ירוק מה-Data Conversion. לחץ פעמיים:
+Excel connection manager: New..., בחר Browse את Template.xlsx, סמן V ב-First row has column names, OK.
+Name of the Excel sheet: Sheet1$.
+בלשונית Mappings: חבר כל עמודה שנוצרה בהמרה (Copy of ...) לעמודה המתאימה באקסל.
+שם קובץ דינמי: בחלק התחתון (Connection Managers), לחץ על חיבור האקסל ולחץ F4. בחלון Properties חפש Expressions, לחץ על שלוש הנקודות, ובחלון שנפתח:
+Property: ExcelFilePath
+Expression: @[User::MonthFilePath]
+OK.
 שלב 5: שליחה לאיציק
-
-Send Mail Task עם שני קבצים מצורפים: FeesData.txt וקובץ האקסל. זה דורש כתובת של שרת המייל בארגון (SMTP).
-כמה דברים שכדאי לדעת
-הרשאות: למשתמש שמריץ את החבילה צריכה להיות הרשאה להפעיל ג'ובים, כלומר תפקיד SQLAgentOperatorRole ב-msdb. אם תקבל שגיאת הרשאה, פנה למנהל ה-DB.
-דרייבר אקסל: כדי לקרוא ולכתוב אקסל ב-SSIS צריך שיהיה מותקן Microsoft ACE OLEDB. אם תקבל שגיאה על כך, תגיד לי ואסביר מה לעשות.
-שליחת מייל: בלי שרת SMTP אפשר לדלג על שלב 5 ולשלוח ידנית, ו-4 השלבים האחרים ירוצו לבד.
-איך להמשיך
-לעבור איתך שלב-שלב בזמן שאתה בונה ב-Visual Studio. אתה מתקדם, ואני מסביר ופותר תקלות.
-להתחיל רק משלבים 2 ו-3 (הכנסת הנתונים והפעלת הג'וב), לבדוק שהם עובדים, ורק אחר כך להוסיף את השאר.
-לבנות הכל ברצף, ואם משהו נכשל, לשלוח לי את הודעת השגיאה.
-
-איזו אפשרות מתאימה לך? ואם ה-Excel Source של איציק הוא קובץ בשם קבוע או שהשם משתנה כל חודש, זה יעזור לי לדעת כבר עכשיו.
+חזור ל-Control Flow, גרור Send Mail Task וחבר חץ ירוק מה-Data Flow השני.
+לחץ פעמיים. בלשונית Mail:
+SmtpConnection: New.... בשדה SMTP Server הכנס את כתובת שרת המייל (שאל את מנהל הרשת). סמן V ב-Use Windows Authentication אם צריך. OK.
+From / To: הכתובות. Subject: למשל קבצי דמי ניהול.
+Attachments: השאר ריק בינתיים.
+לחץ על Expressions בצד שמאל, ובחלון שנפתח הוסף:
+Property: FileAttachments
+Expression:
+"\\\\bdata\\Bank Import\\ExportedData\\FeesData.txt;" + @[User::MonthFilePath]
+OK.
+הרצה
+לחץ על Start (משולש ירוק למעלה) או F5.
