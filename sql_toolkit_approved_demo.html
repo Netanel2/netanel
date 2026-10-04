@@ -1,1 +1,61 @@
-Error(213,1): PLS-00103: Encountered the symbol "/" The symbol "/" was ignored. 
+דבר חשוב לדעת לפני שמתחילים
+
+כשמפעילים ג'וב מבחוץ, הפקודה חוזרת מיד, גם אם הג'וב עוד רץ. אם לא נחכה לו, החבילה תמשיך הלאה ותנסה לקרוא את FeesData.txt לפני שהוא נוצר. לכן נשתמש בקטע SQL שמפעיל את הג'וב ומחכה עד שהוא מסיים.
+
+בניית החבילה, שלב אחר שלב
+
+שלב 0: הכנות (פעם אחת)
+
+ב-Visual Studio: File ← New ← Project ← Integration Services Project.
+הכן קובץ אקסל ריק בשם Template.xlsx, עם שורת כותרות בלבד (אותן עמודות של FeesData). הוא ישמש כתבנית לקובץ החודשי.
+
+שלב 1: משתנה לשם הקובץ
+
+בתפריט SSIS ← Variables, צור משתנה בשם MonthFileName מסוג String.
+ב-Properties שלו, שים EvaluateAsExpression = True, ובתוך Expression הדבק:
+"Fees_" + RIGHT("0" + (DT_WSTR,2) MONTH(DATEADD("mm",-1,GETDATE())),2) + "_" + (DT_WSTR,4) YEAR(DATEADD("mm",-1,GETDATE())) + ".xlsx"
+
+זה נותן שם כמו Fees_09_2026.xlsx לפי החודש הקודם. אם אתה צריך את החודש הנוכחי, מחק את DATEADD("mm",-1, ואת הסוגר המתאים.
+
+שלב 2: קליטת הקובץ של איציק אל BanksCommissions.csv
+
+גרור קוביית Data Flow Task.
+בתוכה: Excel Source (הקובץ שקיבלת מאיציק), ואחריו Flat File Destination שמצביע על \\bdata\Bank Import\BanksCommissions.csv. הקובץ נדרס בכל הרצה.
+עמודה C תיקרא כטקסט, אז שלב "שינוי מספר לכללי" לא נחוץ.
+
+שלב 3: הפעלת הג'וב והמתנה לסיומו
+
+גרור קוביית Execute SQL Task, חבר ל-BDATA, והדבק (החלף את שם הג'וב אם הוא שונה):
+sql
+DECLARE @job sysname = N'Customers Fees';
+EXEC msdb.dbo.sp_start_job @job_name = @job;
+WAITFOR DELAY '00:00:05';
+WHILE EXISTS (
+    SELECT 1
+    FROM msdb.dbo.sysjobactivity ja
+    JOIN msdb.dbo.sysjobs j ON j.job_id = ja.job_id
+    WHERE j.name = @job
+      AND ja.start_execution_date IS NOT NULL
+      AND ja.stop_execution_date IS NULL
+      AND ja.session_id = (SELECT MAX(session_id) FROM msdb.dbo.syssessions)
+)
+    WAITFOR DELAY '00:00:05';
+
+שלב 4: יצירת קובץ האקסל החודשי
+
+File System Task: העתקה של Template.xlsx אל \\bdata\Bank Import\ExportedData\ בשם שמגיע מהמשתנה MonthFileName.
+Data Flow Task: Flat File Source על FeesData.txt עם Code page = 1255 ומפריד נקודה-פסיק, ואחריו Excel Destination על הקובץ שהועתק.
+
+שלב 5: שליחה לאיציק
+
+Send Mail Task עם שני קבצים מצורפים: FeesData.txt וקובץ האקסל. זה דורש כתובת של שרת המייל בארגון (SMTP).
+כמה דברים שכדאי לדעת
+הרשאות: למשתמש שמריץ את החבילה צריכה להיות הרשאה להפעיל ג'ובים, כלומר תפקיד SQLAgentOperatorRole ב-msdb. אם תקבל שגיאת הרשאה, פנה למנהל ה-DB.
+דרייבר אקסל: כדי לקרוא ולכתוב אקסל ב-SSIS צריך שיהיה מותקן Microsoft ACE OLEDB. אם תקבל שגיאה על כך, תגיד לי ואסביר מה לעשות.
+שליחת מייל: בלי שרת SMTP אפשר לדלג על שלב 5 ולשלוח ידנית, ו-4 השלבים האחרים ירוצו לבד.
+איך להמשיך
+לעבור איתך שלב-שלב בזמן שאתה בונה ב-Visual Studio. אתה מתקדם, ואני מסביר ופותר תקלות.
+להתחיל רק משלבים 2 ו-3 (הכנסת הנתונים והפעלת הג'וב), לבדוק שהם עובדים, ורק אחר כך להוסיף את השאר.
+לבנות הכל ברצף, ואם משהו נכשל, לשלוח לי את הודעת השגיאה.
+
+איזו אפשרות מתאימה לך? ואם ה-Excel Source של איציק הוא קובץ בשם קבוע או שהשם משתנה כל חודש, זה יעזור לי לדעת כבר עכשיו.
