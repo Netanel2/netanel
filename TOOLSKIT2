@@ -1,48 +1,3 @@
-אני צריך שתוסיף לי את הקוד SQL הזה למערכת, ותעשה איזור חדש של שאילתות SQL. 
-אם כבר אתה עובד על זה אז צריך שזה יהיה עם 2 משתנים לחיפוש הראשונים שיהיה מובן שצריך לשנות שם 
-
-
-DECLARE @EntitySearch NVARCHAR(100) = N'%שם טבלה%'; 
-DECLARE @FieldSearch NVARCHAR(100) = N'%שם שדה%'; 
-
-SELECT 
-    e.Name AS [שם_ישות_בCRM],
-    e.BaseTableName AS [טבלת_בסיס_בSQL],
-    a.Name AS [שם_שדה_לוגי],
-    at.Description AS [סוג_השדה],
-    ll_he.Label AS [תווית_בעברית],
-    ll_en.Label AS [תווית_באנגלית],
-    -- שליפת ערכים בעברית או באנגלית כגיבוי
-    STUFF((
-        SELECT DISTINCT ' | ' + CAST(sm.AttributeValue AS VARCHAR(20)) + ' = ' + sm.Value
-        FROM dbo.StringMapBase AS sm WITH (NOLOCK)
-        WHERE sm.ObjectTypeCode = e.ObjectTypeCode
-          AND sm.AttributeName = a.Name
-          AND sm.LangId IN (1037, 1033)
-        FOR XML PATH(''), TYPE
-    ).value('.', 'NVARCHAR(MAX)'), 1, 3, '') AS [מפת_ערכים]
-FROM MetadataSchema.Attribute AS a WITH (NOLOCK)
-INNER JOIN MetadataSchema.Entity AS e WITH (NOLOCK)
-    ON a.EntityId = e.EntityId
-LEFT JOIN MetadataSchema.AttributeTypes AS at WITH (NOLOCK)
-    ON a.AttributeTypeId = at.AttributeTypeId
-LEFT JOIN MetadataSchema.LocalizedLabel AS ll_he WITH (NOLOCK)
-    ON a.AttributeId = ll_he.ObjectId 
-    AND ll_he.ObjectColumnName = 'DisplayName' 
-    AND ll_he.LanguageId = 1037
-LEFT JOIN MetadataSchema.LocalizedLabel AS ll_en WITH (NOLOCK)
-    ON a.AttributeId = ll_en.ObjectId 
-    AND ll_en.ObjectColumnName = 'DisplayName' 
-    AND ll_en.LanguageId = 1033
-WHERE (e.Name LIKE @EntitySearch OR e.BaseTableName LIKE @EntitySearch)
-  AND a.Name LIKE @FieldSearch
-  AND e.IsIntersect = 0
-ORDER BY e.Name, a.Name;
-
-
-
-
-
 <!DOCTYPE html>
 <html lang="he" dir="rtl">
 <head>
@@ -668,7 +623,7 @@ ORDER BY e.Name, a.Name;
             <h1>SQL Toolkit</h1>
             <div class="gold-dot"></div>
         </div>
-        <p class="subtitle">בונה רשימות IN · מסדר קוד · משווה · קודי AL · בונה SQL מ-XML · תבניות שאילתה. הכל רץ מקומית בדפדפן.</p>
+        <p class="subtitle">בונה רשימות IN · מסדר קוד · משווה · קודי AL · בונה SQL מ-XML · תבניות שאילתה · ספריית SQL. הכל רץ מקומית בדפדפן.</p>
     </header>
 
     <!-- Tabs Navigation -->
@@ -680,6 +635,7 @@ ORDER BY e.Name, a.Name;
         <button class="tab-btn" onclick="switchTab('xml-sql')">XML→SQL</button>
         <button class="tab-btn" onclick="switchTab('templates-tab')">תבניות שאילתות</button>
         <button class="tab-btn" onclick="switchTab('unicode-tab')">Unicode ⇄ מלל</button>
+        <button class="tab-btn" onclick="switchTab('saved-sql-tab')">שאילתות SQL</button>
     </div>
     <!-- כלי 1: IN Builder -->
     <div id="in-builder" class="tab-content active">
@@ -958,9 +914,28 @@ ORDER BY e.Name, a.Name;
         </div>
     </div>
 
+    <div id="saved-sql-tab" class="tab-content">
+        <div class="hint-box"><strong>ספריית שאילתות SQL</strong> · CRM Metadata<br>חיפוש ישויות, טבלאות ושדות ב-Dynamics CRM, כולל תוויות בעברית ובאנגלית ומפת ערכים. השאילתה מיועדת ל-SQL Server עם גישה לטבלאות המטא-דאטה של CRM.</div>
+        <div class="card">
+            <div class="card-header"><span class="card-label">01 · חיפוש שדות וישויות ב-CRM</span><span class="card-meta">SELECT · SQL Server</span></div>
+            <div style="padding:16px;">
+                <p style="margin:0 0 16px;color:var(--gold-main);font-size:14px;font-weight:600;">שנה את שני משתני החיפוש כאן</p>
+                <div class="compare-grid" style="margin-bottom:12px;">
+                    <div class="param-field-group"><label for="crmEntitySearch">שם ישות / טבלה · @EntitySearch</label><input id="crmEntitySearch" maxlength="98" dir="ltr" placeholder="account" autocomplete="off" oninput="updateCrmQuery()"></div>
+                    <div class="param-field-group"><label for="crmFieldSearch">שם שדה לוגי · @FieldSearch</label><input id="crmFieldSearch" maxlength="98" dir="ltr" placeholder="statuscode" autocomplete="off" oninput="updateCrmQuery()"></div>
+                </div>
+                <p style="font-size:12px;color:var(--text-muted);line-height:1.6;">סימני % מתווספים אוטומטית לחיפוש חלקי. שדה ריק לאחר מילוי השדה השני יחפש את כל הערכים. אם שניהם ריקים יוצגו משתני הדוגמה המקוריים.</p>
+                <div class="controls" style="margin-bottom:0;"><button type="button" class="btn-main" onclick="updateCrmQuery()">עדכן שאילתה</button><button type="button" class="segment-btn" onclick="resetCrmQuery()">איפוס</button></div>
+            </div>
+            <div class="card-header" style="border-top:1px solid var(--border-color);"><span class="card-label">שאילתה מוכנה להעתקה</span><button type="button" class="btn-copy" onclick="copyText('crmQueryOutput', this)">העתק שאילתה</button></div>
+            <textarea id="crmQueryOutput" readonly spellcheck="false" aria-label="שאילתת CRM מוכנה" style="height:650px;color:var(--code-text);line-height:1.6;"></textarea>
+        </div>
+        <div class="hint-box">הכלי מייצר טקסט בלבד. אין חיבור למסד נתונים ואין הרצה אוטומטית.</div>
+    </div>
+
     <!-- Footer -->
     <footer>
- · עובד מקומית, שום מידע לא נשלח לשום מקום גרסה V1.2 ·   
+ · עובד מקומית, שום מידע לא נשלח לשום מקום גרסה V1.3 ·   
 	</footer>
 </div> <!-- סגירת wrapper -->
 <!-- פתיחת תגית הסקריפט המרכזית -->
@@ -2049,6 +2024,25 @@ ORDER BY e.Name, a.Name;
         watchOutputs();
     });
 })();
+</script>
+<script>
+const crmQueryTemplate = "DECLARE @EntitySearch NVARCHAR(100) = N'%שם טבלה%'; \nDECLARE @FieldSearch NVARCHAR(100) = N'%שם שדה%'; \n\nSELECT \n    e.Name AS [שם_ישות_בCRM],\n    e.BaseTableName AS [טבלת_בסיס_בSQL],\n    a.Name AS [שם_שדה_לוגי],\n    at.Description AS [סוג_השדה],\n    ll_he.Label AS [תווית_בעברית],\n    ll_en.Label AS [תווית_באנגלית],\n    -- שליפת ערכים בעברית או באנגלית כגיבוי\n    STUFF((\n        SELECT DISTINCT ' | ' + CAST(sm.AttributeValue AS VARCHAR(20)) + ' = ' + sm.Value\n        FROM dbo.StringMapBase AS sm WITH (NOLOCK)\n        WHERE sm.ObjectTypeCode = e.ObjectTypeCode\n          AND sm.AttributeName = a.Name\n          AND sm.LangId IN (1037, 1033)\n        FOR XML PATH(''), TYPE\n    ).value('.', 'NVARCHAR(MAX)'), 1, 3, '') AS [מפת_ערכים]\nFROM MetadataSchema.Attribute AS a WITH (NOLOCK)\nINNER JOIN MetadataSchema.Entity AS e WITH (NOLOCK)\n    ON a.EntityId = e.EntityId\nLEFT JOIN MetadataSchema.AttributeTypes AS at WITH (NOLOCK)\n    ON a.AttributeTypeId = at.AttributeTypeId\nLEFT JOIN MetadataSchema.LocalizedLabel AS ll_he WITH (NOLOCK)\n    ON a.AttributeId = ll_he.ObjectId \n    AND ll_he.ObjectColumnName = 'DisplayName' \n    AND ll_he.LanguageId = 1037\nLEFT JOIN MetadataSchema.LocalizedLabel AS ll_en WITH (NOLOCK)\n    ON a.AttributeId = ll_en.ObjectId \n    AND ll_en.ObjectColumnName = 'DisplayName' \n    AND ll_en.LanguageId = 1033\nWHERE (e.Name LIKE @EntitySearch OR e.BaseTableName LIKE @EntitySearch)\n  AND a.Name LIKE @FieldSearch\n  AND e.IsIntersect = 0\nORDER BY e.Name, a.Name;";
+function updateCrmQuery() {
+    const entity = document.getElementById('crmEntitySearch').value.trim();
+    const field = document.getElementById('crmFieldSearch').value.trim();
+    const pattern = value => (value ? '%' + value + '%' : '%').replace(/'/g, "''");
+    let sql = crmQueryTemplate;
+    if (entity || field) {
+        sql = sql.replace(/N'%שם (טבלה|שדה)%'/g, (_, kind) => "N'" + pattern(kind === 'טבלה' ? entity : field) + "'");
+    }
+    document.getElementById('crmQueryOutput').value = sql;
+}
+function resetCrmQuery() {
+    document.getElementById('crmEntitySearch').value = '';
+    document.getElementById('crmFieldSearch').value = '';
+    updateCrmQuery();
+}
+updateCrmQuery();
 </script>
 </body>
 </html>
