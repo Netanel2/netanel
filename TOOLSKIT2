@@ -613,7 +613,9 @@
             #builderColumnsArea > div { grid-template-columns: 1fr !important; gap: 8px !important; }
         }
 
-    </style>
+    
+#saved-sql-tab h2{font-size:20px;margin:0 0 8px;color:var(--text-main)} .lib-top,.lib-bottom,.lib-search{display:flex;align-items:center;gap:12px;flex-wrap:wrap;justify-content:space-between;margin-bottom:18px}.lib-top p,.lib-detail-head p{color:var(--text-muted);font-size:13px;margin:0 0 12px}.lib-search{background:var(--panel-bg);border:1px solid var(--border-color);border-radius:12px;padding:6px 12px}.lib-search input{flex:1;min-width:120px;background:transparent;border:0;color:var(--text-main);padding:12px;font-size:14px;outline:none}.lib-grid{display:grid;grid-template-columns:245px minmax(0,1fr);gap:16px;align-items:start}.lib-side .card-header{padding:10px 12px}.lib-side #libCats,.lib-side #libList{padding:8px;max-height:320px;overflow:auto}.lib-item{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;border:1px solid transparent;background:transparent;color:var(--text-main);padding:11px 10px;text-align:right;border-radius:8px;cursor:pointer;font:inherit;font-size:13px;overflow-wrap:anywhere}.lib-item:hover,.lib-item.active{background:rgba(212,175,106,.09);border-color:rgba(212,175,106,.25);color:var(--gold-main)}.lib-item small,.lib-bottom,.lib-detail small{color:var(--text-muted);font-size:12px}.lib-detail-head{padding:20px}.lib-detail-head small{display:inline-block;color:var(--gold-main);margin-bottom:10px}.lib-detail-head .controls{margin:0}.lib-dialog{width:min(680px,94vw);max-height:90vh;overflow:auto;background:var(--panel-bg);color:var(--text-main);border:1px solid var(--border-color);border-radius:16px;padding:24px;direction:rtl}.lib-dialog::backdrop{background:#000b}.lib-dialog form{display:grid;gap:14px}.lib-dialog .controls{margin:0}.lib-dialog input{color:var(--text-main)}.lib-cat-row{display:flex;align-items:center}.lib-cat-row .segment-btn{padding:5px}.lib-bottom{justify-content:flex-start}.lib-bottom span{flex:1}#saved-sql-tab [hidden]{display:none!important}@media(max-width:640px){.lib-grid{grid-template-columns:1fr}.lib-side #libList{max-height:200px}}
+</style>
 </head>
 <body>
 <div class="wrapper">
@@ -915,27 +917,22 @@
     </div>
 
     <div id="saved-sql-tab" class="tab-content">
-        <div class="hint-box"><strong>ספריית שאילתות SQL</strong> · CRM Metadata<br>חיפוש ישויות, טבלאות ושדות ב-Dynamics CRM, כולל תוויות בעברית ובאנגלית ומפת ערכים. השאילתה מיועדת ל-SQL Server עם גישה לטבלאות המטא-דאטה של CRM.</div>
-        <div class="card">
-            <div class="card-header"><span class="card-label">01 · חיפוש שדות וישויות ב-CRM</span><span class="card-meta">SELECT · SQL Server</span></div>
-            <div style="padding:16px;">
-                <p style="margin:0 0 16px;color:var(--gold-main);font-size:14px;font-weight:600;">שנה את שני משתני החיפוש כאן</p>
-                <div class="compare-grid" style="margin-bottom:12px;">
-                    <div class="param-field-group"><label for="crmEntitySearch">שם ישות / טבלה · @EntitySearch</label><input id="crmEntitySearch" maxlength="98" dir="ltr" placeholder="account" autocomplete="off" oninput="updateCrmQuery()"></div>
-                    <div class="param-field-group"><label for="crmFieldSearch">שם שדה לוגי · @FieldSearch</label><input id="crmFieldSearch" maxlength="98" dir="ltr" placeholder="statuscode" autocomplete="off" oninput="updateCrmQuery()"></div>
-                </div>
-                <p style="font-size:12px;color:var(--text-muted);line-height:1.6;">סימני % מתווספים אוטומטית לחיפוש חלקי. שדה ריק לאחר מילוי השדה השני יחפש את כל הערכים. אם שניהם ריקים יוצגו משתני הדוגמה המקוריים.</p>
-                <div class="controls" style="margin-bottom:0;"><button type="button" class="btn-main" onclick="updateCrmQuery()">עדכן שאילתה</button><button type="button" class="segment-btn" onclick="resetCrmQuery()">איפוס</button></div>
-            </div>
-            <div class="card-header" style="border-top:1px solid var(--border-color);"><span class="card-label">שאילתה מוכנה להעתקה</span><button type="button" class="btn-copy" onclick="copyText('crmQueryOutput', this)">העתק שאילתה</button></div>
-            <textarea id="crmQueryOutput" readonly spellcheck="false" aria-label="שאילתת CRM מוכנה" style="height:650px;color:var(--code-text);line-height:1.6;"></textarea>
-        </div>
-        <div class="hint-box">הכלי מייצר טקסט בלבד. אין חיבור למסד נתונים ואין הרצה אוטומטית.</div>
+      <div class="lib-top"><div><h2>ספריית שאילתות SQL</h2><p>כל השאילתות שלך, במקום אחד.</p></div><button class="btn-main" onclick="libEdit(true)">＋ שאילתה חדשה</button></div>
+      <div class="lib-search"><input id="libSearch" placeholder="חיפוש לפי שם, מילת מפתח או קוד SQL…" oninput="libRender()"><button class="segment-btn" onclick="document.getElementById('libSearch').value='';libRender()">נקה</button></div>
+      <div class="lib-grid">
+        <aside class="card lib-side"><div class="card-header"><span class="card-label">קטגוריות</span><button class="segment-btn" onclick="libCategory()">＋ חדשה</button></div><div id="libCats"></div><div class="card-header"><span class="card-label">שאילתות</span><span id="libCount" class="card-meta"></span></div><div id="libList"></div></aside>
+        <main class="card lib-detail"><div id="libEmpty" class="hint-box" style="margin:16px">בחר שאילתה מהרשימה או צור שאילתה חדשה.</div><div id="libDetail" hidden>
+          <div class="lib-detail-head"><small id="libBadge"></small><h2 id="libTitle"></h2><p id="libDescription"></p><div class="controls"><button class="segment-btn" onclick="libEdit(false)">עריכה</button><button class="segment-btn" onclick="libDelete()">מחיקה</button></div></div>
+          <div id="libParams" style="padding:16px;border-top:1px solid var(--border-color)" hidden><strong style="color:var(--gold-main)">משתני חיפוש</strong><div class="compare-grid" style="margin:12px 0"><div class="param-field-group"><label for="crmEntitySearch">שם ישות / טבלה · @EntitySearch</label><input id="crmEntitySearch" maxlength="98" dir="ltr" placeholder="account" oninput="updateCrmQuery()"></div><div class="param-field-group"><label for="crmFieldSearch">שם שדה · @FieldSearch</label><input id="crmFieldSearch" maxlength="98" dir="ltr" placeholder="statuscode" oninput="updateCrmQuery()"></div></div><small>חיפוש חלקי אוטומטי. שדה ריק לצד שדה מלא מחפש הכל.</small> <button class="segment-btn" onclick="resetCrmQuery()">איפוס</button></div>
+          <div class="card-header"><span class="card-label">SQL · קוד מוכן להעתקה</span><button class="btn-copy" onclick="copyText('crmQueryOutput',this)">העתק שאילתה</button></div><textarea id="crmQueryOutput" readonly spellcheck="false" style="height:490px;color:var(--code-text);line-height:1.6"></textarea>
+        </div></main>
+      </div><div class="lib-bottom"><span id="libStatus">נשמר מקומית בדפדפן · ללא חיבור למסד נתונים</span><button class="segment-btn" onclick="libExport()">ייצוא גיבוי</button><button class="segment-btn" onclick="document.getElementById('libImport').click()">ייבוא גיבוי</button><input type="file" id="libImport" accept=".json,application/json" hidden onchange="libImportFile(this)"></div>
+      <dialog id="libDialog" class="lib-dialog"><form id="libForm"><h2 id="libFormTitle"></h2><div class="param-field-group"><label for="libName">שם השאילתה</label><input id="libName" required maxlength="150"></div><div class="param-field-group"><label for="libCat">קטגוריה</label><select id="libCat"></select></div><div class="param-field-group"><label for="libDesc">תיאור / מילות מפתח</label><input id="libDesc"></div><div class="param-field-group"><label for="libCode">קוד SQL</label><textarea id="libCode" required spellcheck="false" style="height:260px;border:1px solid var(--border-color);border-radius:8px"></textarea></div><div class="controls"><button class="btn-main" type="submit">שמירה</button><button class="segment-btn" type="button" onclick="document.getElementById('libDialog').close()">ביטול</button></div></form></dialog>
     </div>
 
     <!-- Footer -->
     <footer>
- · עובד מקומית, שום מידע לא נשלח לשום מקום גרסה V1.3 ·   
+ · עובד מקומית, שום מידע לא נשלח לשום מקום גרסה V1.4 ·   
 	</footer>
 </div> <!-- סגירת wrapper -->
 <!-- פתיחת תגית הסקריפט המרכזית -->
@@ -2027,22 +2024,26 @@
 </script>
 <script>
 const crmQueryTemplate = "DECLARE @EntitySearch NVARCHAR(100) = N'%שם טבלה%'; \nDECLARE @FieldSearch NVARCHAR(100) = N'%שם שדה%'; \n\nSELECT \n    e.Name AS [שם_ישות_בCRM],\n    e.BaseTableName AS [טבלת_בסיס_בSQL],\n    a.Name AS [שם_שדה_לוגי],\n    at.Description AS [סוג_השדה],\n    ll_he.Label AS [תווית_בעברית],\n    ll_en.Label AS [תווית_באנגלית],\n    -- שליפת ערכים בעברית או באנגלית כגיבוי\n    STUFF((\n        SELECT DISTINCT ' | ' + CAST(sm.AttributeValue AS VARCHAR(20)) + ' = ' + sm.Value\n        FROM dbo.StringMapBase AS sm WITH (NOLOCK)\n        WHERE sm.ObjectTypeCode = e.ObjectTypeCode\n          AND sm.AttributeName = a.Name\n          AND sm.LangId IN (1037, 1033)\n        FOR XML PATH(''), TYPE\n    ).value('.', 'NVARCHAR(MAX)'), 1, 3, '') AS [מפת_ערכים]\nFROM MetadataSchema.Attribute AS a WITH (NOLOCK)\nINNER JOIN MetadataSchema.Entity AS e WITH (NOLOCK)\n    ON a.EntityId = e.EntityId\nLEFT JOIN MetadataSchema.AttributeTypes AS at WITH (NOLOCK)\n    ON a.AttributeTypeId = at.AttributeTypeId\nLEFT JOIN MetadataSchema.LocalizedLabel AS ll_he WITH (NOLOCK)\n    ON a.AttributeId = ll_he.ObjectId \n    AND ll_he.ObjectColumnName = 'DisplayName' \n    AND ll_he.LanguageId = 1037\nLEFT JOIN MetadataSchema.LocalizedLabel AS ll_en WITH (NOLOCK)\n    ON a.AttributeId = ll_en.ObjectId \n    AND ll_en.ObjectColumnName = 'DisplayName' \n    AND ll_en.LanguageId = 1033\nWHERE (e.Name LIKE @EntitySearch OR e.BaseTableName LIKE @EntitySearch)\n  AND a.Name LIKE @FieldSearch\n  AND e.IsIntersect = 0\nORDER BY e.Name, a.Name;";
-function updateCrmQuery() {
-    const entity = document.getElementById('crmEntitySearch').value.trim();
-    const field = document.getElementById('crmFieldSearch').value.trim();
-    const pattern = value => (value ? '%' + value + '%' : '%').replace(/'/g, "''");
-    let sql = crmQueryTemplate;
-    if (entity || field) {
-        sql = sql.replace(/N'%שם (טבלה|שדה)%'/g, (_, kind) => "N'" + pattern(kind === 'טבלה' ? entity : field) + "'");
-    }
-    document.getElementById('crmQueryOutput').value = sql;
-}
-function resetCrmQuery() {
-    document.getElementById('crmEntitySearch').value = '';
-    document.getElementById('crmFieldSearch').value = '';
-    updateCrmQuery();
-}
-updateCrmQuery();
+const libKey='sqlToolkit.library.v1';
+const libDefault=()=>({categories:[{id:'bam',name:'בע״מ'}],queries:[{id:'crm',cat:'bam',name:'חיפוש עמודות ב CRM בע"מ',desc:'חיפוש ישויות, טבלאות, שדות, תוויות ומפת ערכים ב-Dynamics CRM',code:crmQueryTemplate,params:true}]});
+let libData=libDefault(),libFilter='all',libSelected='crm',libEditing=null;
+const libEl=id=>document.getElementById(id);
+try{const saved=localStorage.getItem(libKey);if(saved)libData=libValidate(JSON.parse(saved));}catch(e){libEl('libStatus').textContent='לא ניתן לטעון את האחסון המקומי; מומלץ לייצא גיבוי.';}
+function libValidate(x){if(!x||!Array.isArray(x.categories)||!Array.isArray(x.queries))throw Error('גיבוי לא תקין');const cats=new Set(),qs=new Set();for(const c of x.categories){if(typeof c.id!=='string'||c.id==='all'||cats.has(c.id)||typeof c.name!=='string'||!c.name.trim())throw Error('קטגוריה לא תקינה');cats.add(c.id)}for(const q of x.queries){if(typeof q.id!=='string'||qs.has(q.id)||!cats.has(q.cat)||typeof q.name!=='string'||typeof q.code!=='string'||typeof q.desc!=='string')throw Error('שאילתה לא תקינה');qs.add(q.id)}return x;}
+function libSave(){try{localStorage.setItem(libKey,JSON.stringify(libData));libEl('libStatus').textContent='השינויים נשמרו מקומית · מומלץ לייצא גיבוי';}catch(e){libEl('libStatus').textContent='השמירה המקומית נכשלה — ייצא גיבוי לפני סגירה!';}}
+function libId(){return Date.now().toString(36)+'-'+Math.random().toString(36).slice(2)}
+function libButton(label,count,active,fn){const b=document.createElement('button');b.type='button';b.className='lib-item'+(active?' active':'');const t=document.createElement('span');t.textContent=label;b.append(t);if(count!==null){const c=document.createElement('small');c.textContent=count;b.append(c)}b.onclick=fn;return b}
+function libRender(){const cats=libEl('libCats'),list=libEl('libList');cats.replaceChildren();list.replaceChildren();cats.append(libButton('כל השאילתות',libData.queries.length,libFilter==='all',()=>{libFilter='all';libRender()}));for(const c of libData.categories){const row=document.createElement('div');row.className='lib-cat-row';row.append(libButton(c.name,libData.queries.filter(q=>q.cat===c.id).length,libFilter===c.id,()=>{libFilter=c.id;libRender()}));const edit=document.createElement('button');edit.className='segment-btn';edit.textContent='⋯';edit.title='שינוי שם קטגוריה';edit.onclick=()=>libCategory(c.id);row.append(edit);cats.append(row)}const terms=libEl('libSearch').value.toLowerCase().trim().split(/\s+/).filter(Boolean);const matches=libData.queries.filter(q=>(libFilter==='all'||q.cat===libFilter)&&terms.every(t=>(q.name+' '+q.desc+' '+q.code).toLowerCase().includes(t)));libEl('libCount').textContent=matches.length+' תוצאות';if(!matches.some(q=>q.id===libSelected))libSelected=matches[0]?.id||null;for(const q of matches)list.append(libButton(q.name,null,q.id===libSelected,()=>{libSelected=q.id;resetCrmQuery();libRender()}));if(!matches.length){const p=document.createElement('p');p.style.padding='8px';p.style.color='var(--text-muted)';p.textContent='אין שאילתות מתאימות';list.append(p)}libShow();}
+function libShow(){const q=libData.queries.find(q=>q.id===libSelected);libEl('libEmpty').hidden=!!q;libEl('libDetail').hidden=!q;if(!q)return;libEl('libTitle').textContent=q.name;libEl('libBadge').textContent=libData.categories.find(c=>c.id===q.cat)?.name||'';libEl('libDescription').textContent=q.desc;libEl('libParams').hidden=!q.params;updateCrmQuery();}
+function updateCrmQuery(){const q=libData.queries.find(q=>q.id===libSelected);if(!q)return;let sql=q.code;const entity=libEl('crmEntitySearch').value.trim(),field=libEl('crmFieldSearch').value.trim();const pattern=v=>(v?'%'+v+'%':'%').replace(/'/g,"''");if(q.params&&(entity||field))sql=sql.replace(/(DECLARE\s+@(EntitySearch|FieldSearch)\s+NVARCHAR\(100\)\s*=\s*)N'(?:''|[^'])*'/gi,(_,prefix,k)=>prefix+"N'"+pattern(k.toLowerCase()==='entitysearch'?entity:field)+"'");libEl('crmQueryOutput').value=sql;}
+function resetCrmQuery(){libEl('crmEntitySearch').value='';libEl('crmFieldSearch').value='';updateCrmQuery();}
+function libCategory(id){const c=libData.categories.find(c=>c.id===id);const name=prompt(c?'שינוי שם קטגוריה':'שם קטגוריה חדשה',c?.name||'');if(!name?.trim())return;if(libData.categories.some(z=>z.id!==id&&z.name.trim().toLowerCase()===name.trim().toLowerCase()))return alert('קטגוריה בשם זה כבר קיימת');if(c)c.name=name.trim();else{const newId=libId();libData.categories.push({id:newId,name:name.trim()});libFilter=newId;}libSave();libRender();}
+function libEdit(isNew){const q=isNew?null:libData.queries.find(q=>q.id===libSelected);if(!isNew&&!q)return;if(!libData.categories.length){libCategory();if(!libData.categories.length)return;}libEditing=q?.id||null;libEl('libFormTitle').textContent=q?'עריכת שאילתה':'שאילתה חדשה';libEl('libName').value=q?.name||'';libEl('libDesc').value=q?.desc||'';libEl('libCode').value=q?.code||'';const sel=libEl('libCat');sel.replaceChildren();for(const c of libData.categories){const o=document.createElement('option');o.value=c.id;o.textContent=c.name;sel.append(o)}sel.value=q?.cat||(libFilter==='all'?libData.categories[0].id:libFilter);libEl('libDialog').showModal();}
+libEl('libForm').addEventListener('submit',e=>{e.preventDefault();const name=libEl('libName').value.trim(),code=libEl('libCode').value;if(!name||!code.trim())return alert('יש למלא שם וקוד');const old=libData.queries.find(q=>q.id===libEditing);const q={id:old?.id||libId(),cat:libEl('libCat').value,name,desc:libEl('libDesc').value.trim(),code,params:/DECLARE\s+@EntitySearch\s+NVARCHAR\(100\)\s*=\s*N'/i.test(code)&&/DECLARE\s+@FieldSearch\s+NVARCHAR\(100\)\s*=\s*N'/i.test(code)};if(old)Object.assign(old,q);else libData.queries.push(q);libSelected=q.id;libFilter=q.cat;libEl('libSearch').value='';resetCrmQuery();libSave();libEl('libDialog').close();libRender()});
+function libDelete(){const q=libData.queries.find(q=>q.id===libSelected);if(q&&confirm('למחוק את '+q.name+'?')){libData.queries=libData.queries.filter(x=>x.id!==q.id);libSelected=null;libSave();libRender()}}
+function libExport(){const url=URL.createObjectURL(new Blob([JSON.stringify(libData,null,2)],{type:'application/json'}));const a=document.createElement('a');a.href=url;a.download='SQL-Toolkit-library.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)}
+async function libImportFile(input){try{if(!input.files[0])return;const data=libValidate(JSON.parse(await input.files[0].text()));if(!confirm('הייבוא יחליף את הספרייה הנוכחית. להמשיך?'))return;libData=data;libFilter='all';libSelected=null;libEl('libSearch').value='';libSave();libRender()}catch(e){alert('לא ניתן לייבא: '+e.message)}finally{input.value=''}}
+libRender();
 </script>
 </body>
 </html>
