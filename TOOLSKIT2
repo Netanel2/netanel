@@ -615,7 +615,9 @@
 
     
 #saved-sql-tab h2{font-size:20px;margin:0 0 8px;color:var(--text-main)} .lib-top,.lib-bottom,.lib-search{display:flex;align-items:center;gap:12px;flex-wrap:wrap;justify-content:space-between;margin-bottom:18px}.lib-top p,.lib-detail-head p{color:var(--text-muted);font-size:13px;margin:0 0 12px}.lib-search{background:var(--panel-bg);border:1px solid var(--border-color);border-radius:12px;padding:6px 12px}.lib-search input{flex:1;min-width:120px;background:transparent;border:0;color:var(--text-main);padding:12px;font-size:14px;outline:none}.lib-grid{display:grid;grid-template-columns:245px minmax(0,1fr);gap:16px;align-items:start}.lib-side .card-header{padding:10px 12px}.lib-side #libCats,.lib-side #libList{padding:8px;max-height:320px;overflow:auto}.lib-item{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;border:1px solid transparent;background:transparent;color:var(--text-main);padding:11px 10px;text-align:right;border-radius:8px;cursor:pointer;font:inherit;font-size:13px;overflow-wrap:anywhere}.lib-item:hover,.lib-item.active{background:rgba(212,175,106,.09);border-color:rgba(212,175,106,.25);color:var(--gold-main)}.lib-item small,.lib-bottom,.lib-detail small{color:var(--text-muted);font-size:12px}.lib-detail-head{padding:20px}.lib-detail-head small{display:inline-block;color:var(--gold-main);margin-bottom:10px}.lib-detail-head .controls{margin:0}.lib-dialog{width:min(680px,94vw);max-height:90vh;overflow:auto;background:var(--panel-bg);color:var(--text-main);border:1px solid var(--border-color);border-radius:16px;padding:24px;direction:rtl}.lib-dialog::backdrop{background:#000b}.lib-dialog form{display:grid;gap:14px}.lib-dialog .controls{margin:0}.lib-dialog input{color:var(--text-main)}.lib-cat-row{display:flex;align-items:center}.lib-cat-row .segment-btn{padding:5px}.lib-bottom{justify-content:flex-start}.lib-bottom span{flex:1}#saved-sql-tab [hidden]{display:none!important}@media(max-width:640px){.lib-grid{grid-template-columns:1fr}.lib-side #libList{max-height:200px}}
-.tabs{flex-wrap:wrap;overflow:visible}.tab-btn{padding:10px 8px}.lib-top .btn-main{min-height:44px}</style>
+.tabs{flex-wrap:wrap;overflow:visible}.tab-btn{padding:10px 8px}.lib-top .btn-main{min-height:44px}
+.wrapper{max-width:1100px}.portal-hero{position:relative;overflow:hidden;padding:34px;border:1px solid #443c2d;border-radius:20px;background:radial-gradient(ellipse at 0% 0%,#353022 0%,transparent 55%),linear-gradient(120deg,#1d2028,#111318);margin-bottom:26px}.portal-kicker{font-size:11px;letter-spacing:2px;color:var(--gold-main);font-weight:700}.portal-hero h2{font-size:clamp(26px,4vw,42px);margin:12px 0;font-weight:650}.portal-hero p{color:#b1b5c0;max-width:600px;line-height:1.7;margin:0 0 18px}.portal-stats{display:flex;flex-wrap:wrap;gap:24px;margin-top:24px}.portal-stats strong{display:block;color:var(--gold-main);font-size:23px}.portal-stats small{color:var(--text-muted)}.portal-heading{display:flex;align-items:center;gap:12px;margin:26px 0 12px;font-size:15px;color:var(--text-main)}.portal-heading:after{content:'';height:1px;background:var(--border-color);flex:1}.portal-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.portal-card{font:inherit;text-align:right;cursor:pointer;display:flex;flex-direction:column;align-items:stretch;gap:10px;min-height:155px;padding:19px;background:var(--panel-bg);color:var(--text-main);border:1px solid var(--border-color);border-radius:14px;transition:transform .2s,border-color .2s,background .2s}.portal-card:hover{transform:translateY(-3px);border-color:var(--gold-main);background:#1b1e25}.portal-card-top{display:flex;align-items:center;justify-content:space-between}.portal-icon{width:40px;height:40px;display:grid;place-items:center;border-radius:10px;background:#29251e;color:var(--gold-main);font-size:19px;font-weight:600;direction:ltr}.portal-card strong{font-size:16px}.portal-card small{color:var(--text-muted);font-size:13px;line-height:1.5}.portal-arrow{color:var(--gold-main);font-size:20px}.portal-actions{display:flex;gap:10px;flex-wrap:wrap}.portal-secondary{border:1px solid #44404a;background:transparent;color:var(--text-main);border-radius:10px;padding:10px 16px;font:inherit;cursor:pointer}.portal-secondary:hover{border-color:var(--gold-main)}@media(max-width:760px){.portal-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:480px){.portal-grid{grid-template-columns:1fr}.portal-hero{padding:22px}}
+</style>
 </head>
 <body>
 <div class="wrapper">
@@ -629,8 +631,9 @@
     </header>
 
     <!-- Tabs Navigation -->
-    <div class="controls" style="margin:16px 0;gap:12px"><button type="button" class="btn-main" onclick="switchTab('saved-sql-tab');libCategory()">＋ יצירת קטגוריה חדשה</button><button type="button" class="btn-main" onclick="switchTab('saved-sql-tab');libEdit(true)">＋ הוספת שאילתת SQL</button></div><div class="tabs">
-                <button class="tab-btn active" onclick="switchTab('saved-sql-tab')">שאילתות SQL</button>
+    <div class="tabs">
+                <button class="tab-btn active" onclick="switchTab('home-tab')">⌂ דף הבית</button>
+        <button class="tab-btn" onclick="switchTab('saved-sql-tab')">שאילתות SQL</button>
         <button class="tab-btn" onclick="switchTab('in-builder')">IN Builder</button>
         <button class="tab-btn" onclick="switchTab('beautify')">Beautify</button>
         <button class="tab-btn" onclick="switchTab('compare')">Compare</button>
@@ -640,6 +643,7 @@
         <button class="tab-btn" onclick="switchTab('unicode-tab')">Unicode ⇄ מלל</button>
 
     </div>
+<section id="home-tab" class="tab-content active"><div class="portal-hero"><div class="portal-kicker">SQL TOOLKIT / WORKSPACE</div><h2>כל הכלים. מקום אחד.</h2><p>מרחב עבודה משותף לצוותים ולמחלקות. בחרו את הכלי המתאים למשימה והתחילו לעבוד.</p><div class="portal-stats"><div><strong>8</strong><small>כלי עבודה</small></div><div><strong id="homeCategories">–</strong><small>קטגוריות בספרייה</small></div><div><strong id="homeQueries">–</strong><small>שאילתות שמורות</small></div><div><strong>100%</strong><small>עבודה מקומית</small></div></div></div><h3 class="portal-heading">מסדי נתונים ושאילתות</h3><div class="portal-grid"><button type="button" class="portal-card" onclick="switchTab('saved-sql-tab')"><span class="portal-card-top"><span class="portal-icon">▤</span><span class="portal-arrow">←</span></span><strong>ספריית שאילתות SQL</strong><small>חיפוש, שמירה וארגון שאילתות לפי קטגוריות</small></button><button type="button" class="portal-card" onclick="switchTab('templates-tab')"><span class="portal-card-top"><span class="portal-icon">▦</span><span class="portal-arrow">←</span></span><strong>בונה שאילתות</strong><small>יצירת SELECT ו־UPDATE לפי טבלאות ושדות</small></button><button type="button" class="portal-card" onclick="switchTab('in-builder')"><span class="portal-card-top"><span class="portal-icon">( )</span><span class="portal-arrow">←</span></span><strong>IN Builder</strong><small>הכנת רשימות ערכים לשימוש בשאילתות</small></button></div><h3 class="portal-heading">פיתוח, אינטגרציה ותמיכה</h3><div class="portal-grid"><button type="button" class="portal-card" onclick="switchTab('beautify')"><span class="portal-card-top"><span class="portal-icon">{ }</span><span class="portal-arrow">←</span></span><strong>Beautify</strong><small>סידור וקריאות קוד SQL, JSON ו־XML</small></button><button type="button" class="portal-card" onclick="switchTab('compare')"><span class="portal-card-top"><span class="portal-icon">±</span><span class="portal-arrow">←</span></span><strong>Compare</strong><small>השוואת גרסאות וזיהוי הבדלים בטקסט</small></button><button type="button" class="portal-card" onclick="switchTab('xml-sql')"><span class="portal-card-top"><span class="portal-icon">⇄</span><span class="portal-arrow">←</span></span><strong>XML → SQL</strong><small>המרת XML ו־FetchXML לשאילתות SQL</small></button><button type="button" class="portal-card" onclick="switchTab('unicode-tab')"><span class="portal-card-top"><span class="portal-icon">א</span><span class="portal-arrow">←</span></span><strong>Unicode ⇄ מלל</strong><small>פענוח וקידוד טקסט ותווים</small></button></div><h3 class="portal-heading">תפעול וניהול עובדים</h3><div class="portal-grid"><button type="button" class="portal-card" onclick="switchTab('employees')"><span class="portal-card-top"><span class="portal-icon">AL</span><span class="portal-arrow">←</span></span><strong>כלי עובדים</strong><small>הפקת קודי AL ושאילתות לפי רשימות עובדים</small></button></div></section>
     <!-- כלי 1: IN Builder -->
     <div id="in-builder" class="tab-content">
         <div class="card">
@@ -917,7 +921,7 @@
         </div>
     </div>
 
-    <div id="saved-sql-tab" class="tab-content active">
+    <div id="saved-sql-tab" class="tab-content">
       <div class="lib-top"><div><h2>ספריית שאילתות SQL</h2><p>כל השאילתות שלך, במקום אחד.</p></div><div class="controls" style="margin:0"><button type="button" class="btn-main" onclick="libCategory()">＋ קטגוריה חדשה</button><button type="button" class="btn-main" onclick="libEdit(true)">＋ שאילתה חדשה</button></div></div>
       <div class="lib-search"><input id="libSearch" placeholder="חיפוש לפי שם, מילת מפתח או קוד SQL…" oninput="libRender()"><button class="segment-btn" onclick="document.getElementById('libSearch').value='';libRender()">נקה</button></div>
       <div class="lib-grid">
@@ -933,7 +937,7 @@
 
     <!-- Footer -->
     <footer>
- · עובד מקומית, שום מידע לא נשלח לשום מקום גרסה V1.6 ·   
+ · עובד מקומית, שום מידע לא נשלח לשום מקום גרסה V1.8 ·   
 	</footer>
 </div> <!-- סגירת wrapper -->
 <!-- פתיחת תגית הסקריפט המרכזית -->
@@ -949,6 +953,7 @@
         document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
         
         document.getElementById(tabId).classList.add('active');
+        if(tabId==='home-tab') portalRefresh();
         
         const clickedBtn = Array.from(document.querySelectorAll('.tab-btn'))
             .find(btn => btn.getAttribute('onclick').includes(tabId));
@@ -2046,7 +2051,8 @@ libEl('libForm').addEventListener('submit',e=>{e.preventDefault();const name=lib
 function libDelete(){const q=libData.queries.find(q=>q.id===libSelected);if(q&&confirm('למחוק את '+q.name+'?')){libData.queries=libData.queries.filter(x=>x.id!==q.id);libSelected=null;libSave();libRender()}}
 function libExport(){const url=URL.createObjectURL(new Blob([JSON.stringify(libData,null,2)],{type:'application/json'}));const a=document.createElement('a');a.href=url;a.download='SQL-Toolkit-library.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)}
 async function libImportFile(input){try{if(!input.files[0])return;const data=libValidate(JSON.parse(await input.files[0].text()));if(!confirm('הייבוא יחליף את הספרייה הנוכחית. להמשיך?'))return;libData=data;libFilter='all';libSelected=null;libEl('libSearch').value='';libSave();libRender()}catch(e){alert('לא ניתן לייבא: '+e.message)}finally{input.value=''}}
-libRender();
+function portalRefresh(){libEl('homeCategories').textContent=libData.categories.length;libEl('homeQueries').textContent=libData.queries.length;}
+libRender();portalRefresh();
 </script>
 </body>
 </html>
